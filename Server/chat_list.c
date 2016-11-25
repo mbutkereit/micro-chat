@@ -88,9 +88,11 @@ controll_info_list* findUserByName(char *username) {
  */
 int checkUserConnectedWithMe(char *username) {
 	controll_info_list *user = findUserByName(username);
+    
 	if (user != NULL) {
 		return user->controll_info.hops;
 	}
+    
 	return -1;
 }
 
@@ -141,7 +143,7 @@ void writeChatListToBuffer(FILE * socketStream) {
 }
 
 /**
- * Todo noch einen Namens check hinzufügen.
+ * Todo noch einen Namens check hinzufügen oder andere metric um externe nutzer zu erkennen.
  * (Sockets sind nicht eindeutig da es fuer einen user mehrfach den selben geben kann.)
  */
 controll_info_list* find_user_by_socket(int socketFD) {
@@ -164,7 +166,7 @@ controll_info_list* find_user_by_socket(int socketFD) {
 
 /**
  * Entfernt einen Nutzer anhand seines SocketFD.
- * Todo noch einen Namens check hinzufügen.
+ * Todo noch einen Namens check hinzufügen oder andere metric um externe nutzer zu erkennen.
  * (Sockets sind nicht eindeutig da es fuer einen user mehrfach den selben geben kann.)
  * (oder zumindest an den punkten validieren wo es noetig ist den richtigen user zu löschen.)
  */
@@ -181,8 +183,9 @@ int remove_user_by_socket(int socketFD) {
         
 		FD_CLR(entry->connection_item->socketFD, &readfds);
 		LIST_REMOVE(entry, entries);
-		entry->connection_item->status = REMOVE;
         controll_info_usage_size--;
+        //Todo der Speicher fuer das connection item muss noch irgendwo freigegeben werden
+        // nur aktuell noch nicht ganz sicher wo.
 		status = 0;
         
         pthread_mutex_unlock(&lock_list);
@@ -212,6 +215,7 @@ int merge_user_list(connection_item* item ,controll_info* user){
 
 /**
  * Informiert alle verbindung die mehr als 0 hops haben sprich server ueber neue benutzer.
+ * Todo nach vorgabe im Protokoll verteilen.
  */
 void notify_all_by_update(){
     controll_info_list* controll_info_table = NULL;
@@ -227,19 +231,24 @@ void notify_all_by_update(){
 }
 
 /**
- * Funktion um das naechst eintreffende eventzu Queuen.
+ * Funktion um das naechst eintreffende event zu Queuen.
  */
 void checkEvent() {
 	controll_info_list *controll_info_table = NULL;
-            pthread_mutex_lock(&lock_list);
-	LIST_FOREACH(controll_info_table, &chat_list_head, entries)
+    
+    pthread_mutex_lock(&lock_list);
+	
+    LIST_FOREACH(controll_info_table, &chat_list_head, entries)
 	{
 		if (FD_ISSET(controll_info_table->connection_item->socketFD, &readfds)
 				&& controll_info_table->connection_item->status == 0) {
+            
 			controll_info_table->connection_item->status = QUEUED;
 			enqueue(controll_info_table->connection_item);
+            
 		}
 	}
-            pthread_mutex_unlock(&lock_list);
+    
+    pthread_mutex_unlock(&lock_list);
 
 }

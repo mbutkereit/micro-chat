@@ -28,15 +28,14 @@ void init_common_header(common_header* data, uint8_t length, uint8_t flags, uint
 }
 
 /**
- *
  * Bearbeitet den Versand von Nachrichten.
- *
  */
 int handleLogin(connection_item* item, common_header* header) {
 	int status = 0;
 	if (header->flags & FIN) {
 		controll_info_list* user = find_user_by_socket(item->socketFD);
-		if (user != NULL) { // ctodo change name
+		if (user != NULL) {
+            //Hier ist es kein Problem da die Nutzer an diesem Server eigene Sockets bekommen.
             remove_user_by_socket(item->socketFD);
 			common_header header;
             
@@ -45,13 +44,14 @@ int handleLogin(connection_item* item, common_header* header) {
 			header.type = LOG_IN_OUT_HEADER;
 			header.version = SUPPORTED_VERSION;
 
-			ssize_t send_info = send(item->socketFD, &header,
-					sizeof(common_header), 0);
+			ssize_t send_info = send(item->socketFD, &header, sizeof(common_header), 0);
+            
 			if (send_info < 0) {
 				perror("send");
 				fprintf(stderr, "ERROR: Bei Send Logout bestaetigung. \n");
 				exit(EXIT_FAILURE);
 			}
+            
 			status = 0;
 		}
 	} else if (header->flags & SYN) {
@@ -147,12 +147,15 @@ void handleControllInfo(connection_item* item, common_header* old_header) {
 	if (old_header->flags == NO_FLAGS) {
 		controll_info data;
 		for (int i = 0; i < old_header->length; i++) {
+            // Zuruecksetzten der Information nach jeder behandlung.
 			memset((void * )&data, 0, sizeof(controll_info));
+            
 			ssize_t numBytesRcvd = recv(item->socketFD, (void*) &data,sizeof(controll_info), 0);
 			if (numBytesRcvd < 0) {
 				perror("fwrite");
 				fprintf(stderr,"ERROR: Kann nicht zum Message stream schreiben. \n");
 			}
+            
 			merge_user_list(item, &data);
 		}
 	}
@@ -279,6 +282,7 @@ void* workerThreadMain() {
 				// Ueberpruefe MAXIMUM_TIME_TO_LIVE und entferne anderenfalls den eintrag.
 				item->ttl++;
 				if (item->ttl > MAXIMUM_TIME_TO_LIVE) {
+                    //todo problem 1 alle user mit dem Socket muessen entfernt werden.
                   remove_user_by_socket(item->socketFD);
 				}
 			}
@@ -425,10 +429,12 @@ void initializeRequest(char* ip) {
 		if (header.flags == (SYN | ACK)) {
 			for (int i = 0; i < header.length; i++) {
 				memset((void * )&data, 0, sizeof(controll_info));
+                
 				ssize_t numBytesRcvd = recv(socketFD, (void*) &data, sizeof(controll_info), 0);
 				if (numBytesRcvd < 0) {
 					fprintf(stderr,"ERROR; return code from pthread_create() is \n");
 				}
+                
 				merge_user_list(request, &data);
 			}
 		}
@@ -437,9 +443,7 @@ void initializeRequest(char* ip) {
 }
 
 /**
- *
  * Einstiegspunkt des Programmes.
- *
  */
 int main(int argc, const char * argv[]) {
 
