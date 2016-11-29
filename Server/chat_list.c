@@ -37,6 +37,7 @@ void add_new_controll_info(char username[USERNAME_REAL_SIZE], uint16_t hops, con
 	LIST_INSERT_HEAD(&chat_list_head, controll_info_table, entries);
 
 	pthread_mutex_unlock(&lock_list);
+    notify_all_by_update();
 }
 
 /**
@@ -146,7 +147,7 @@ void writeChatListToBuffer(FILE * socketStream) {
  * Todo noch einen Namens check hinzufügen oder andere metric um externe nutzer zu erkennen.
  * (Sockets sind nicht eindeutig da es fuer einen user mehrfach den selben geben kann.)
  */
-controll_info_list* find_user_by_socket(int socketFD) {
+controll_info_list* _find_user_by_socket(int socketFD) {
 	controll_info_list *entry = NULL;
     controll_info_list* response_value;
     pthread_mutex_lock(&lock_list);
@@ -172,9 +173,9 @@ controll_info_list* find_user_by_socket(int socketFD) {
  */
 int remove_user_by_socket(int socketFD) {
 	int status = -1;
-	controll_info_list *entry = find_user_by_socket(socketFD);
+	controll_info_list *entry = _find_user_by_socket(socketFD);
 
-	if (entry != NULL) {
+	while(entry != NULL) {
 		if (highest_fd == entry->connection_item->socketFD) {
 			highest_fd = find_next_smaller_socket_id();
 		}
@@ -189,7 +190,11 @@ int remove_user_by_socket(int socketFD) {
 		status = 0;
         
         pthread_mutex_unlock(&lock_list);
+        entry = _find_user_by_socket(socketFD);
 	}
+    
+    notify_all_by_update();
+    
 	return status;
 }
 
@@ -204,6 +209,7 @@ int merge_user_list(connection_item* item ,controll_info* user){
         if(entry->controll_info.hops > (++user->hops)){
             pthread_mutex_lock(&lock_list);
             entry->connection_item = item;
+            entry->controll_info.hops = (++user->hops);
             pthread_mutex_unlock(&lock_list);
         }
     }else{

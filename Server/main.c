@@ -8,7 +8,7 @@ struct timeval tv; // Timer Struktur fuer select().
 int highest_fd = 0; // höchster file descriptor
 
 /**
- *
+ * Initialisiert die log_in_out structure.
  */
 void init_log_in_out(login_out* data, int length, int flags) {
 	data->common_header.length = length;
@@ -33,7 +33,16 @@ void init_common_header(common_header* data, uint8_t length, uint8_t flags, uint
 int handleLogin(connection_item* item, common_header* header) {
 	int status = 0;
 	if (header->flags & FIN) {
-		controll_info_list* user = find_user_by_socket(item->socketFD);
+        login_out_header data;
+        // Recieve Username.
+        ssize_t numBytesRcvd = recv(item->socketFD, (void*) &data, header->length * sizeof(char), 0);
+        if (numBytesRcvd < 0) {
+            perror("recv");
+            fprintf(stderr,"ERROR: Kann den Username von dem LOG_IN_OUT_HEADER nicht recv\n");
+            return -1;
+        }
+        
+        controll_info_list* user = findUserByName(data.username);
 		if (user != NULL) {
             //Hier ist es kein Problem da die Nutzer an diesem Server eigene Sockets bekommen.
             remove_user_by_socket(item->socketFD);
@@ -106,6 +115,9 @@ int handleLogin(connection_item* item, common_header* header) {
 	return status;
 }
 
+/**
+ * Sendet Controll Information an client.
+ */
 void sendControllInfo(connection_item* item , uint8_t flags){
     common_header header;
     
@@ -282,8 +294,8 @@ void* workerThreadMain() {
 				// Ueberpruefe MAXIMUM_TIME_TO_LIVE und entferne anderenfalls den eintrag.
 				item->ttl++;
 				if (item->ttl > MAXIMUM_TIME_TO_LIVE) {
-                    //todo problem 1 alle user mit dem Socket muessen entfernt werden.
-                  remove_user_by_socket(item->socketFD);
+                    //todo umbennen es werden alle user gelöscht.
+                  remove_user_by_socket(item->socketFD);//
 				}
 			}
 
@@ -397,8 +409,7 @@ void initializeRequest(char* ip) {
 	header.version = SUPPORTED_VERSION;
 
 	//todo abfangen
-	ssize_t bytes_send = send(socketFD, (void*) &header, sizeof(common_header),
-			0);
+	ssize_t bytes_send = send(socketFD, (void*) &header, sizeof(common_header),0);
 	if (bytes_send < 0) {
 		fprintf(stderr, "ERROR; return code from pthread_create() is \n");
 
@@ -407,13 +418,14 @@ void initializeRequest(char* ip) {
 	// memset((void *)&header,0,sizeof(common_header));
 	ssize_t numBytesRcvd = recv(socketFD, (void*) &header,
 			sizeof(common_header), 0);
+    
 	if (numBytesRcvd < 0) {
 		fprintf(stderr, "ERROR; return code from pthread_create() is \n");
 
 	}
     
-    connection_item* request = (connection_item*) malloc(
-                                                         sizeof(connection_item));
+    connection_item* request = (connection_item*) malloc(sizeof(connection_item));
+    
     if (request == 0) {
         perror("malloc");
         fprintf(stderr, "ERROR: Out of memory\n");
@@ -426,7 +438,6 @@ void initializeRequest(char* ip) {
     request->ttl = 0;
 
 	if (header.version == SUPPORTED_VERSION) {
-		if (header.flags == (SYN | ACK)) {
 			for (int i = 0; i < header.length; i++) {
 				memset((void * )&data, 0, sizeof(controll_info));
                 
@@ -434,9 +445,7 @@ void initializeRequest(char* ip) {
 				if (numBytesRcvd < 0) {
 					fprintf(stderr,"ERROR; return code from pthread_create() is \n");
 				}
-                
 				merge_user_list(request, &data);
-			}
 		}
 
 	}

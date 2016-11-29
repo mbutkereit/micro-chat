@@ -30,7 +30,7 @@ int find_next_smaller_socket_id();
 void init_chat_list();
 void checkEvent();
 controll_info_list* findUserByName(char* username);
-controll_info_list* find_user_by_socket(int);
+controll_info_list* _find_user_by_socket(int);
 int merge_user_list(connection_item* item ,controll_info* user);
 int remove_user_by_socket(int socketFD);
 void notify_all_by_update();
