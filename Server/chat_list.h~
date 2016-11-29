@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "client.h"
+#include "Client.h"
 // Only a copy of Freebsd sys/queue.h
 #include "queue.h"
 #include "server.h"

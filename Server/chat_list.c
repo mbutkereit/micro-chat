@@ -240,14 +240,18 @@ void notify_all_by_update(){
 /**
  * Funktion um das naechst eintreffende event zu Queuen.
  */
-void checkEvent() {
+void checkEvent(fd_set* test) {
 	controll_info_list *controll_info_table = NULL;
     
     pthread_mutex_lock(&lock_list);
 	
     LIST_FOREACH(controll_info_table, &chat_list_head, entries)
 	{
-		if (FD_ISSET(controll_info_table->connection_item->socketFD, &readfds)
+
+    	fprintf(stderr,"\nStatus des FD: %d \n",FD_ISSET(controll_info_table->connection_item->socketFD, test));
+    	fprintf(stderr,"\nSocket FD: %d \n",controll_info_table->connection_item->socketFD);
+
+		if (FD_ISSET(controll_info_table->connection_item->socketFD, test)
 				&& controll_info_table->connection_item->status == 0) {
             
 			controll_info_table->connection_item->status = QUEUED;

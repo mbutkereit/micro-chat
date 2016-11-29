@@ -1,9 +1,10 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
-#include "Client.h"
+#include "client.h"
 
 #define COMMUNICATION_PORT 9012
+//#define SERVER_IP "141.22.27.107"
 #define SERVER_IP "127.0.0.1"
 
 #define MAX_MESSAGE_SIZE 255
@@ -176,7 +177,8 @@ void* messageHandlerMain(void * socket_fd_p){
                 // Ausgabe der Controll Information
                 if (header.type == CONTROL_INFO_HEADER){
                             controll_info data;
-                            for(int i = 0 ; i < header.length ; i++){
+                            int i = 0;
+                            for(i = 0 ; i < header.length ; i++){
                                 memset((void *)&data,0,sizeof(controll_info));
                                 ssize_t numBytesRcvd = recv(socket_fd, (void*) &data, sizeof(controll_info), 0);
                                 if(numBytesRcvd < 0){
@@ -217,6 +219,10 @@ int main(int argc, char *argv[])
     
     // Destination = Speicher ergebnis.
     res = inet_pton(AF_INET, SERVER_IP, &sa.sin_addr);
+    if(res < 0){
+
+    }
+
     if (connect(SocketFD, (struct sockaddr *)&sa, sizeof sa) == -1) {
         perror("connect failed");
         close(SocketFD);
@@ -268,6 +274,8 @@ int main(int argc, char *argv[])
             char command[255];
 
             for(;;){
+            	 printf("Geben sie einen Befehl ein: \n");
+                memset((void *)&command,0,255*sizeof(char));
                 fgets(command, 255, stdin);
                 command[strcspn(command, "\n")] = 0;
                 if (strcmp(command, "/info") == 0) 
@@ -290,6 +298,8 @@ int main(int argc, char *argv[])
                     username_dest[strcspn(username_dest, "\n")] = 0;
                     sendMessageTo(SocketFD, sa, username_dest, USERNAME_REAL_SIZE,message, 255);
                 }else {
+
+                    printf("Unbekannter Befehl \n");
                    // sendToAllMessage(SocketFD, sa, command, 255);
                 }
                 

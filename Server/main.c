@@ -158,7 +158,8 @@ void handleControllInfo(connection_item* item, common_header* old_header) {
     
 	if (old_header->flags == NO_FLAGS) {
 		controll_info data;
-		for (int i = 0; i < old_header->length; i++) {
+		int i = 0;
+		for (i = 0; i < old_header->length; i++) {
             // Zuruecksetzten der Information nach jeder behandlung.
 			memset((void * )&data, 0, sizeof(controll_info));
             
@@ -253,13 +254,12 @@ void* eventDispatcherThreadMain() {
 	fd_set read_fd_set;
 
 	for (;;) {
-		read_fd_set = readfds; // readfds wuede sonst resetet werden.
-		int rv = select((highest_fd + 1), &read_fd_set, NULL, NULL, &tv); // Highest fd wird erhoeht um 1 laut man.
-
+	   read_fd_set = readfds; // readfds wuede sonst resetet werden.
+	   int rv = select((highest_fd + 1), &read_fd_set, NULL, NULL, &tv); // Highest fd wird erhoeht um 1 laut man.
+	   tv.tv_sec = 10;
        if (rv > 0) {
-			checkEvent();
+			checkEvent(&read_fd_set);
 		}
-
 	}
 }
 
@@ -327,7 +327,15 @@ void connectionHandling() {
 	memset((void * )&sa, 0, sizeof(sa));
 
 	sa.sin_port = htons(DEFAULT_PORT);
-	sa.sin_addr.s_addr = inet_addr(LOCAL_IP);
+
+	int yes=1;
+	//char yes='1'; // Solaris people use this
+
+	// lose the pesky "Address already in use" error message
+	if (setsockopt(socketFD,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof(int)) == -1) {
+	    perror("setsockopt");
+	    exit(1);
+	}
 
 	int bind_code = bind(socketFD, (struct sockaddr *) &sa, sizeof(sa));
 	if (bind_code < 0) {
@@ -395,6 +403,12 @@ void initializeRequest(char* ip) {
 
 	// Destination = Speicher ergebnis.
 	res = inet_pton(AF_INET, ip, &sa.sin_addr);
+	//todo abfangen
+	if(res < 0){
+
+	}
+
+
 	if (connect(socketFD, (struct sockaddr *) &sa, sizeof sa) == -1) {
 		perror("connect");
 		close(socketFD);
@@ -436,9 +450,9 @@ void initializeRequest(char* ip) {
     
     request->socketFD = socketFD;
     request->ttl = 0;
-
+    int i = 0;
 	if (header.version == SUPPORTED_VERSION) {
-			for (int i = 0; i < header.length; i++) {
+			for (i=0; i < header.length; i++) {
 				memset((void * )&data, 0, sizeof(controll_info));
                 
 				ssize_t numBytesRcvd = recv(socketFD, (void*) &data, sizeof(controll_info), 0);

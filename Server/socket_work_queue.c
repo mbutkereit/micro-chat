@@ -6,6 +6,7 @@ static sem_t *queue_down_sem;
 queue* _connectionQueue = NULL;
 queue* _connectionQueueFront = NULL;
 pthread_mutex_t lock_queue;
+int debugzaehler =0;
 
 void init_queue() {
 
@@ -41,6 +42,8 @@ queue* enqueue(connection_item* item) {
 		element = element->next;
 	}
 
+	fprintf(stderr,"\n Enque funktioniert %d",debugzaehler++);
+
 	queue* new_item = (queue*) malloc(sizeof(queue));
 	new_item->value = item;
 	new_item->next = NULL;
@@ -62,6 +65,8 @@ connection_item* dequeue() {
 	sem_wait(queue_up_sem);
 	pthread_mutex_lock(&lock_queue);
 	queue* temp = _connectionQueueFront;
+
+	fprintf(stderr,"\n Deque funktioniert %d",debugzaehler++);
 	if (_connectionQueueFront == NULL) {
 		printf("Queue is Empty\n");
 		pthread_mutex_unlock(&lock_queue);
