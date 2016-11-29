@@ -71,13 +71,14 @@ controll_info_list* findUserByName(char *username) {
 	pthread_mutex_lock(&lock_list);
 
 	controll_info_list *entry = NULL;
+    if(!LIST_EMPTY(&chat_list_head)){
 	LIST_FOREACH(entry, &chat_list_head, entries)
 	{
 		if (strcmp(username, entry->controll_info.username) == 0) {
 			response = entry;
 			break;
 		}
-	}
+    }}
 
 	pthread_mutex_unlock(&lock_list);
 
@@ -105,13 +106,13 @@ int find_next_smaller_socket_id() {
 	controll_info_list *entry = NULL;
 
 	pthread_mutex_lock(&lock_list);
-
+    if(!LIST_EMPTY(&chat_list_head)){
 	LIST_FOREACH(entry, &chat_list_head, entries)
 	{
 		if (entry->connection_item->socketFD > temp) {
 			temp = entry->connection_item->socketFD;
 		}
-	}
+    }}
 
 	pthread_mutex_unlock(&lock_list);
 
@@ -148,17 +149,17 @@ void writeChatListToBuffer(FILE * socketStream) {
  * (Sockets sind nicht eindeutig da es fuer einen user mehrfach den selben geben kann.)
  */
 controll_info_list* _find_user_by_socket(int socketFD) {
-	controll_info_list *entry = NULL;
-    controll_info_list* response_value;
+	controll_info_list* entry = NULL;
+    controll_info_list* response_value = NULL;
     pthread_mutex_lock(&lock_list);
-    
+        if(!LIST_EMPTY(&chat_list_head)){
 	LIST_FOREACH(entry, &chat_list_head, entries)
 	{
 		if (socketFD == entry->connection_item->socketFD) {
 			response_value = entry;
             break;
 		}
-	}
+    }}
     
     pthread_mutex_unlock(&lock_list);
     

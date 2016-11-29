@@ -8,7 +8,7 @@
 
 #define MAX_MESSAGE_SIZE 255
 
-char username[USERNAME_SIZE];
+char username[USERNAME_REAL_SIZE];
 
 //API functionen
 void init_log_in_out(login_out* data,int length,int flags){
@@ -26,9 +26,9 @@ int log_in(int socketFD,char* username){
     // Anmelden an den Server.
     login_out login_data;
     memset((void *)&login_data,0,sizeof(login_out));
-    init_log_in_out(&login_data,USERNAME_SIZE,SYN);
+    init_log_in_out(&login_data,USERNAME_REAL_SIZE,SYN);
     
-    snprintf(&login_data.login_out_header.username[0], USERNAME_SIZE,"%s" ,username);
+    snprintf(&login_data.login_out_header.username[0], USERNAME_REAL_SIZE,"%s" ,username);
     
     ssize_t bytes_send = send(socketFD,(void*)&login_data, sizeof(login_data), 0);
     if(bytes_send < 0){
@@ -82,9 +82,9 @@ void userCloseConnection(int socket_fd, struct sockaddr_in sa){
     login_out login_data;
     memset((void *)&login_data,0,sizeof(login_out));
     
-    init_log_in_out(&login_data,USERNAME_SIZE,NO_FLAG);
+    init_log_in_out(&login_data,USERNAME_REAL_SIZE,NO_FLAGS);
     
-    snprintf(&login_data.login_out_header.username[0], USERNAME_SIZE,"%s" ,username);
+    snprintf(&login_data.login_out_header.username[0], USERNAME_REAL_SIZE,"%s" ,username);
     
    ssize_t bytes_send = send(socket_fd,(void*)&login_data, sizeof(login_data), 0);
     
@@ -106,31 +106,43 @@ void sendMessageTo(int SocketFD, struct sockaddr_in sa, char* username_recv, int
     message_info data;
     memset((void *)&data,0,sizeof(message_info));
     
-    header.flags = NO_FLAG;
+    header.flags = NO_FLAGS;
     header.length = 255;
     header.type = MESSAGE_HEADER;
     header.version = SUPPORTED_VERSION;
     
     // Usernames hinzufuegen.
-    int user_name_size = length_username > USERNAME_SIZE ? USERNAME_SIZE:length_username;
+    int user_name_size = length_username > USERNAME_PSEUDO_SIZE ? USERNAME_PSEUDO_SIZE:length_username;
     snprintf(data.destination_username, user_name_size,"%s" ,username_recv);
     
-    user_name_size = USERNAME_SIZE ;
+    user_name_size = USERNAME_PSEUDO_SIZE;
     snprintf(data.source_username, user_name_size ,"%s" ,username);
     
+    char payload[255];
     int max_message_size = length_message > MAX_MESSAGE_SIZE ? MAX_MESSAGE_SIZE :length_message;
-    snprintf(data.payload, max_message_size,"%s" ,message);
+    snprintf(payload, max_message_size,"%s" ,message);
+
+    FILE *outstream = fdopen(SocketFD, "w");
     
-    //todo abfangen
-    ssize_t bytes_send = send(SocketFD,(void*)&header, sizeof(common_header), 0);
-    if(bytes_send < 0 ){
-    
+    if (fwrite(&header, sizeof(common_header), 1, outstream) != 1) {
+        perror("fwrite");
+        fprintf(stderr,"ERROR: Kann nicht zum Message stream schreiben. \n");
     }
     
-    bytes_send = send(SocketFD,(void*)&data, sizeof(message_info), 0);
-    if(bytes_send < 0){
-    
+    if (fwrite(&data, sizeof(message_info), 1, outstream) != 1) {
+        perror("fwrite");
+        fprintf(stderr,"ERROR: Kann nicht zum Message stream schreiben. \n");
     }
+
+    
+    if (fwrite(&payload, sizeof(char)*max_message_size, 1, outstream) != 1) {
+        perror("fwrite");
+        fprintf(stderr,"ERROR: Kann nicht zum Message stream schreiben. \n");
+    }
+    
+    // Todo anschauen fehlerbehandlung
+    fflush(outstream);
+
 }
 
 /**
@@ -153,10 +165,11 @@ void* messageHandlerMain(void * socket_fd_p){
                 if (header.type == MESSAGE_HEADER){
                     message_info data;
                     memset((void *)&data,0,sizeof(message_info));
+                    char payload[255];
                     
                     numBytesRcvd = recv(socket_fd, (void*) &data, sizeof(message_info), 0);
-                    
-                    printf("\n %s: %s \n",data.source_username,data.payload);
+                    numBytesRcvd = recv(socket_fd, (void*) &payload, sizeof(char)*header.length, 0);
+                    printf("\n %s: %s \n",data.source_username,payload);
             
                 }
                 
@@ -213,13 +226,13 @@ int main(int argc, char *argv[])
      ** LOG in Phase
      **
      */
-    char string [USERNAME_SIZE];
+    char string [USERNAME_REAL_SIZE];
     int status = 0;
     int i = 0;
     do{
         printf ("Bitte geben Sie einen gueltigen Benutzernamen ein: \n");
         //todo replace with right method
-        fgets (string,USERNAME_SIZE,stdin);
+        fgets (string,USERNAME_REAL_SIZE,stdin);
         string[strcspn(string, "\n")] = 0;
         printf ("Einen Momment bitte: %s\n",string);
         status = log_in(SocketFD , string);
@@ -237,7 +250,7 @@ int main(int argc, char *argv[])
      */
     
     if(status == 0 ){
-        snprintf(username, USERNAME_SIZE,"%s" ,string);
+        snprintf(username, USERNAME_REAL_SIZE,"%s" ,string);
         pthread_t messageHandlerThread;
         int* socket_fd_p = &SocketFD;
         int messageHandler = pthread_create(&messageHandlerThread, NULL, messageHandlerMain, (void*)socket_fd_p);
@@ -269,13 +282,13 @@ int main(int argc, char *argv[])
                 else if (strcmp(command,"/msg") == 0)
                 {
                     char message[255];
-                    char username[USERNAME_SIZE];
+                    char username_dest[USERNAME_REAL_SIZE];
                     printf("An wenn wollen Sie eine Nachricht schicken ? \n");
-                    fgets(username,USERNAME_SIZE,stdin);
+                    fgets(username_dest,USERNAME_REAL_SIZE,stdin);
                     printf("\n und nun bitte noch die Nachricht: \n");
                     fgets(message,255, stdin);
-                    
-                    sendMessageTo(SocketFD, sa, username, USERNAME_SIZE,message, 255);
+                    username_dest[strcspn(username_dest, "\n")] = 0;
+                    sendMessageTo(SocketFD, sa, username_dest, USERNAME_REAL_SIZE,message, 255);
                 }else {
                    // sendToAllMessage(SocketFD, sa, command, 255);
                 }
