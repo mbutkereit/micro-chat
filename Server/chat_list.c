@@ -247,10 +247,6 @@ void checkEvent(fd_set* test) {
 	
     LIST_FOREACH(controll_info_table, &chat_list_head, entries)
 	{
-
-    	fprintf(stderr,"\nStatus des FD: %d \n",FD_ISSET(controll_info_table->connection_item->socketFD, test));
-    	fprintf(stderr,"\nSocket FD: %d \n",controll_info_table->connection_item->socketFD);
-
 		if (FD_ISSET(controll_info_table->connection_item->socketFD, test)
 				&& controll_info_table->connection_item->status == 0) {
             

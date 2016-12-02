@@ -20,7 +20,8 @@ void init_log_in_out(login_out* data, int length, int flags) {
 /**
  * Initialisierungs Funktion fuer den common Header.
  */
-void init_common_header(common_header* data, uint8_t length, uint8_t flags, uint8_t type) {
+void init_common_header(common_header* data, uint8_t length, uint8_t flags,
+		uint8_t type) {
 	data->length = length;
 	data->type = type;
 	data->version = SUPPORTED_VERSION;
@@ -33,34 +34,37 @@ void init_common_header(common_header* data, uint8_t length, uint8_t flags, uint
 int handleLogin(connection_item* item, common_header* header) {
 	int status = 0;
 	if (header->flags & FIN) {
-        login_out_header data;
-        // Recieve Username.
-        ssize_t numBytesRcvd = recv(item->socketFD, (void*) &data, header->length * sizeof(char), 0);
-        if (numBytesRcvd < 0) {
-            perror("recv");
-            fprintf(stderr,"ERROR: Kann den Username von dem LOG_IN_OUT_HEADER nicht recv\n");
-            return -1;
-        }
-        
-        controll_info_list* user = findUserByName(data.username);
+		login_out_header data;
+		// Recieve Username.
+		ssize_t numBytesRcvd = recv(item->socketFD, (void*) &data,
+				header->length * sizeof(char), 0);
+		if (numBytesRcvd < 0) {
+			perror("recv");
+			fprintf(stderr,
+					"ERROR: Kann den Username von dem LOG_IN_OUT_HEADER nicht recv\n");
+			return -1;
+		}
+
+		controll_info_list* user = findUserByName(data.username);
 		if (user != NULL) {
-            //Hier ist es kein Problem da die Nutzer an diesem Server eigene Sockets bekommen.
-            remove_user_by_socket(item->socketFD);
+			//Hier ist es kein Problem da die Nutzer an diesem Server eigene Sockets bekommen.
+			remove_user_by_socket(item->socketFD);
 			common_header header;
-            
+
 			header.flags = FIN | ACK;
 			header.length = 0;
 			header.type = LOG_IN_OUT_HEADER;
 			header.version = SUPPORTED_VERSION;
 
-			ssize_t send_info = send(item->socketFD, &header, sizeof(common_header), 0);
-            
+			ssize_t send_info = send(item->socketFD, &header,
+					sizeof(common_header), 0);
+
 			if (send_info < 0) {
 				perror("send");
 				fprintf(stderr, "ERROR: Bei Send Logout bestaetigung. \n");
 				exit(EXIT_FAILURE);
 			}
-            
+
 			status = 0;
 		}
 	} else if (header->flags & SYN) {
@@ -68,22 +72,40 @@ int handleLogin(connection_item* item, common_header* header) {
 		int i = 0;
 		int socketFD = item->socketFD;
 		do {
-			login_out response_value;
-			memset((void * )&response_value, 0, sizeof(login_out));
 
-			login_out_header* data = (login_out_header*) malloc(sizeof(login_out_header));
-			memset((void * )data, 0, sizeof(login_out_header));
+			//Im Fehlerfall
+			if (i != 0) {
+				common_header cheader;
+				//recieve header
+				ssize_t numBytesRcvd = recv(socketFD, (void*) &cheader,
+						sizeof(common_header), 0);
+				if (numBytesRcvd < 0) {
+					perror("recv");
+					fprintf(stderr,
+							"ERROR: Kann den Username von dem LOG_IN_OUT_HEADER nicht recv\n");
+					status = LOG_IN_NOT_POSSIBLE;
+				}
+			}
+
+			login_out response_value;
+			memset((void *) &response_value, 0, sizeof(login_out));
+
+			login_out_header* data = (login_out_header*) malloc(
+					sizeof(login_out_header));
+			memset((void *) data, 0, sizeof(login_out_header));
 
 			// Recieve Username.
-			ssize_t numBytesRcvd = recv(socketFD, (void*) data, header->length * sizeof(char), 0);
+			ssize_t numBytesRcvd = recv(socketFD, (void*) data,
+					header->length * sizeof(char), 0);
 			if (numBytesRcvd < 0) {
 				perror("recv");
-				fprintf(stderr,"ERROR: Kann den Username von dem LOG_IN_OUT_HEADER nicht recv\n");
+				fprintf(stderr,
+						"ERROR: Kann den Username von dem LOG_IN_OUT_HEADER nicht recv\n");
 				status = LOG_IN_NOT_POSSIBLE;
-				break;
 			}
 
 			// Checken ob es den User schon gibt.
+			fprintf(stderr, "Der erhaltene Username ist:%s\n", data->username);
 			int user_already_exist = checkUserAlreadyExist(data->username);
 
 			if (user_already_exist < 0) {
@@ -96,11 +118,13 @@ int handleLogin(connection_item* item, common_header* header) {
 			}
 
 			// Antwort senden
-			ssize_t send_info = send(socketFD, &response_value, sizeof(common_header), 0);
-            
+			ssize_t send_info = send(socketFD, &response_value,
+					sizeof(common_header), 0);
+
 			if (send_info < 0) {
-                perror("send");
-				fprintf(stderr, "ERROR: Das senden des LogIn Response war nicht erfolgreich \n");
+				perror("send");
+				fprintf(stderr,
+						"ERROR: Das senden des LogIn Response war nicht erfolgreich \n");
 			}
 
 			i++;
@@ -118,29 +142,30 @@ int handleLogin(connection_item* item, common_header* header) {
 /**
  * Sendet Controll Information an client.
  */
-void sendControllInfo(connection_item* item , uint8_t flags){
-    common_header header;
-    
-    init_common_header(&header, controll_info_usage_size, flags, CONTROL_INFO_HEADER);
-    
-    // Kann nach test entfernt werden.
-    header.flags = flags;
-    header.version = SUPPORTED_VERSION;
-    header.type = CONTROL_INFO_HEADER;
-    header.length = controll_info_usage_size;
-    
-    FILE *outstream = fdopen(item->socketFD, "w");
-    
-    if (fwrite(&header, sizeof(common_header), 1, outstream) != 1) {
-        perror("fwrite");
-        fprintf(stderr,"ERROR: Kann nicht zum Message stream schreiben. \n");
-        exit(EXIT_FAILURE);
-    }
-    
-    writeChatListToBuffer(outstream);
-    
-    // Todo anschauen fehlerbehandlung
-    fflush(outstream);
+void sendControllInfo(connection_item* item, uint8_t flags) {
+	common_header header;
+
+	init_common_header(&header, controll_info_usage_size, flags,
+			CONTROL_INFO_HEADER);
+
+	// Kann nach test entfernt werden.
+	header.flags = flags;
+	header.version = SUPPORTED_VERSION;
+	header.type = CONTROL_INFO_HEADER;
+	header.length = controll_info_usage_size;
+
+	FILE *outstream = fdopen(item->socketFD, "w");
+
+	if (fwrite(&header, sizeof(common_header), 1, outstream) != 1) {
+		perror("fwrite");
+		fprintf(stderr, "ERROR: Kann nicht zum Message stream schreiben. \n");
+		exit(EXIT_FAILURE);
+	}
+
+	writeChatListToBuffer(outstream);
+
+	// Todo anschauen fehlerbehandlung
+	fflush(outstream);
 }
 
 /**
@@ -151,24 +176,26 @@ void sendControllInfo(connection_item* item , uint8_t flags){
  *   - Zustand NO_Flags es wurden information von einem Server an uns gesendet.
  */
 void handleControllInfo(connection_item* item, common_header* old_header) {
-    
+
 	if (old_header->flags == GET) {
-        sendControllInfo(item, SYN | ACK);
+		sendControllInfo(item, NO_FLAGS);
 	}
-    
+
 	if (old_header->flags == NO_FLAGS) {
 		controll_info data;
 		int i = 0;
 		for (i = 0; i < old_header->length; i++) {
-            // Zuruecksetzten der Information nach jeder behandlung.
-			memset((void * )&data, 0, sizeof(controll_info));
-            
-			ssize_t numBytesRcvd = recv(item->socketFD, (void*) &data,sizeof(controll_info), 0);
+			// Zuruecksetzten der Information nach jeder behandlung.
+			memset((void *) &data, 0, sizeof(controll_info));
+
+			ssize_t numBytesRcvd = recv(item->socketFD, (void*) &data,
+					sizeof(controll_info), 0);
 			if (numBytesRcvd < 0) {
 				perror("fwrite");
-				fprintf(stderr,"ERROR: Kann nicht zum Message stream schreiben. \n");
+				fprintf(stderr,
+						"ERROR: Kann nicht zum Message stream schreiben. \n");
 			}
-            
+
 			merge_user_list(item, &data);
 		}
 	}
@@ -178,23 +205,26 @@ void handleControllInfo(connection_item* item, common_header* old_header) {
  * Bearbeitet den Versand von Nachrichten.
  */
 void handleMessage(int socketFD, common_header* header) {
-    
+
 	message_info data;
-    
-	memset((void * )&data, 0, sizeof(message_info));
+
+	memset((void *) &data, 0, sizeof(message_info));
 
 	char payLoadBuffer[header->length];
 
 	// Recieve Message Info (Usernames usw ).
-	ssize_t numBytesRcvd = recv(socketFD, (void*) &data, sizeof(message_info),0);
-    
+	ssize_t numBytesRcvd = recv(socketFD, (void*) &data, sizeof(message_info),
+			0);
+
 	if (numBytesRcvd < 0) {
-        perror("recv");
-		fprintf(stderr, "ERROR: Es konnte die Usernames des Message nicht empfangen werden \n");
+		perror("recv");
+		fprintf(stderr,
+				"ERROR: Es konnte die Usernames des Message nicht empfangen werden \n");
 	}
 
 	// Recieve die Message selbst.
-	numBytesRcvd = recv(socketFD, (void*) &payLoadBuffer,sizeof(char) * header->length, 0);
+	numBytesRcvd = recv(socketFD, (void*) &payLoadBuffer,
+			sizeof(char) * header->length, 0);
 	if (numBytesRcvd < 0) {
 		perror("recv");
 		fprintf(stderr, "ERROR: Kein Recv der Message moeglich\n");
@@ -209,19 +239,23 @@ void handleMessage(int socketFD, common_header* header) {
 
 		if (fwrite(header, sizeof(common_header), 1, outstream) != 1) {
 			perror("fwrite");
-			fprintf(stderr, "ERROR: Common Header kann nicht in den Buffer geschrieben werden. \n");
+			fprintf(stderr,
+					"ERROR: Common Header kann nicht in den Buffer geschrieben werden. \n");
 			exit(EXIT_FAILURE);
 		}
 
 		if (fwrite(&data, sizeof(message_info), 1, outstream) != 1) {
 			perror("fwrite");
-			fprintf(stderr, "ERROR: Usernames konnen nicht in den Buffer geschrieben werden. \n");
+			fprintf(stderr,
+					"ERROR: Usernames konnen nicht in den Buffer geschrieben werden. \n");
 			exit(EXIT_FAILURE);
 		}
 
-		if (fwrite(&payLoadBuffer, sizeof(char) * header->length, 1, outstream) != 1) {
+		if (fwrite(&payLoadBuffer, sizeof(char) * header->length, 1, outstream)
+				!= 1) {
 			perror("fwrite");
-			fprintf(stderr, "ERROR: Die Message kann nicht in den Buffer geschrieben werden. \n");
+			fprintf(stderr,
+					"ERROR: Die Message kann nicht in den Buffer geschrieben werden. \n");
 			exit(EXIT_FAILURE);
 		}
 		//todo schauen ob error codes kommen
@@ -240,7 +274,8 @@ int RecieveHeaderTCP(common_header* header, int clntSocket) {
 
 	if (numBytesRcvd < 0) {
 		perror("recv");
-        fprintf(stderr, "ERROR: Die Message kann nicht in den Buffer geschrieben werden. \n");
+		fprintf(stderr,
+				"ERROR: Die Message kann nicht in den Buffer geschrieben werden. \n");
 	}
 
 	return 0;
@@ -254,10 +289,10 @@ void* eventDispatcherThreadMain() {
 	fd_set read_fd_set;
 
 	for (;;) {
-	   read_fd_set = readfds; // readfds wuede sonst resetet werden.
-	   int rv = select((highest_fd + 1), &read_fd_set, NULL, NULL, &tv); // Highest fd wird erhoeht um 1 laut man.
-	   tv.tv_sec = 10;
-       if (rv > 0) {
+		read_fd_set = readfds; // readfds wuede sonst resetet werden.
+		int rv = select((highest_fd + 1), &read_fd_set, NULL, NULL, &tv); // Highest fd wird erhoeht um 1 laut man.
+		tv.tv_sec = 10;
+		if (rv > 0) {
 			checkEvent(&read_fd_set);
 		}
 	}
@@ -269,7 +304,7 @@ void* workerThreadMain() {
 		connection_item* item = dequeue();
 		if (item != NULL) {
 			common_header header;
-			memset((void * )&header, 0, sizeof(common_header));
+			memset((void *) &header, 0, sizeof(common_header));
 
 			int header_recieved = RecieveHeaderTCP(&header, item->socketFD);
 
@@ -281,21 +316,27 @@ void* workerThreadMain() {
 			if (header.version == SUPPORTED_VERSION) {
 				switch (header.type) {
 				case LOG_IN_OUT_HEADER:
+					fprintf(stderr, "Log Header\n");
 					handleLogin(item, &header);
 					break;
 				case CONTROL_INFO_HEADER:
+					fprintf(stderr, "Control Info Header\n");
 					handleControllInfo(item, &header);
 					break;
 				case MESSAGE_HEADER:
+					fprintf(stderr, "Message Header\n");
 					handleMessage(item->socketFD, &header);
 					break;
+				default:
+					fprintf(stderr, "Unbekannter typ\n");
 				}
 			} else {
+				fprintf(stderr, "Unbekannter headerversion\n");
 				// Ueberpruefe MAXIMUM_TIME_TO_LIVE und entferne anderenfalls den eintrag.
 				item->ttl++;
 				if (item->ttl > MAXIMUM_TIME_TO_LIVE) {
-                    //todo umbennen es werden alle user gelöscht.
-                  remove_user_by_socket(item->socketFD);//
+					//todo umbennen es werden alle user gelöscht.
+					remove_user_by_socket(item->socketFD); //
 				}
 			}
 
@@ -317,24 +358,24 @@ void connectionHandling() {
 	struct sockaddr_in sa;
 
 	int socketFD = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
 	if (socketFD < 0) {
 		perror("socket");
 		fprintf(stderr, "ERROR: Es kann kein Socket erstellt werden.\n");
 		exit(EXIT_FAILURE);
 	}
 
-	memset((void * )&sa, 0, sizeof(sa));
+	memset((void *) &sa, 0, sizeof(sa));
 
 	sa.sin_port = htons(DEFAULT_PORT);
 
-	int yes=1;
+	int yes = 1;
 	//char yes='1'; // Solaris people use this
 
 	// lose the pesky "Address already in use" error message
-	if (setsockopt(socketFD,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof(int)) == -1) {
-	    perror("setsockopt");
-	    exit(1);
+	if (setsockopt(socketFD, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int))
+			== -1) {
+		perror("setsockopt");
+		exit(1);
 	}
 
 	int bind_code = bind(socketFD, (struct sockaddr *) &sa, sizeof(sa));
@@ -361,7 +402,7 @@ void connectionHandling() {
 			exit(EXIT_FAILURE);
 		}
 
-		memset((void * )request, 0, sizeof(connection_item));
+		memset((void *) request, 0, sizeof(connection_item));
 
 		unsigned int structure_size = sizeof(request->client_addr);
 		int connectionFD = accept(socketFD,
@@ -383,7 +424,8 @@ void connectionHandling() {
 }
 
 /**
- * Funktion um den Initialen Server austausch an zustossen.
+ * Funktion um den Initialen Server austausch anzustossen.
+ * baut Verbindung zum Server auf und fragt nach der Tabelle
  */
 void initializeRequest(char* ip) {
 	struct sockaddr_in sa;
@@ -392,7 +434,7 @@ void initializeRequest(char* ip) {
 
 	socketFD = socket(AF_INET, SOCK_STREAM, 0); // Erstellen des Sockets.
 	if (socketFD == -1) {
-		fprintf(stderr, "ERROR: Out of memory\n");
+		fprintf(stderr, "ERROR: Socket erstellung\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -403,11 +445,10 @@ void initializeRequest(char* ip) {
 
 	// Destination = Speicher ergebnis.
 	res = inet_pton(AF_INET, ip, &sa.sin_addr);
-	//todo abfangen
-	if(res < 0){
-
+	if (res < 0) {
+		fprintf(stderr, "ERROR: Konvertierung \n");
+		exit(EXIT_FAILURE);
 	}
-
 
 	if (connect(socketFD, (struct sockaddr *) &sa, sizeof sa) == -1) {
 		perror("connect");
@@ -422,44 +463,44 @@ void initializeRequest(char* ip) {
 	header.type = CONTROL_INFO_HEADER;
 	header.version = SUPPORTED_VERSION;
 
-	//todo abfangen
-	ssize_t bytes_send = send(socketFD, (void*) &header, sizeof(common_header),0);
+	ssize_t bytes_send = send(socketFD, (void*) &header, sizeof(common_header),
+			0);
 	if (bytes_send < 0) {
-		fprintf(stderr, "ERROR; return code from pthread_create() is \n");
+		fprintf(stderr, "ERROR; Send \n");
 
 	}
 
 	// memset((void *)&header,0,sizeof(common_header));
 	ssize_t numBytesRcvd = recv(socketFD, (void*) &header,
 			sizeof(common_header), 0);
-    
 	if (numBytesRcvd < 0) {
-		fprintf(stderr, "ERROR; return code from pthread_create() is \n");
+		fprintf(stderr, "ERROR; Recieve\n");
 
 	}
-    
-    connection_item* request = (connection_item*) malloc(sizeof(connection_item));
-    
-    if (request == 0) {
-        perror("malloc");
-        fprintf(stderr, "ERROR: Out of memory\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    memset((void * )request, 0, sizeof(connection_item));
-    
-    request->socketFD = socketFD;
-    request->ttl = 0;
-    int i = 0;
+
+	connection_item* request = (connection_item*) malloc(
+			sizeof(connection_item));
+	if (request == 0) {
+		perror("malloc");
+		fprintf(stderr, "ERROR: Out of memory\n");
+		exit(EXIT_FAILURE);
+	}
+
+	memset((void *) request, 0, sizeof(connection_item));
+
+	request->socketFD = socketFD;
+	request->ttl = 0;
+	int i = 0;
 	if (header.version == SUPPORTED_VERSION) {
-			for (i=0; i < header.length; i++) {
-				memset((void * )&data, 0, sizeof(controll_info));
-                
-				ssize_t numBytesRcvd = recv(socketFD, (void*) &data, sizeof(controll_info), 0);
-				if (numBytesRcvd < 0) {
-					fprintf(stderr,"ERROR; return code from pthread_create() is \n");
-				}
-				merge_user_list(request, &data);
+		for (i = 0; i < header.length; i++) {
+			memset((void *) &data, 0, sizeof(controll_info));
+
+			ssize_t numBytesRcvd = recv(socketFD, (void*) &data,
+					sizeof(controll_info), 0);
+			if (numBytesRcvd < 0) {
+				fprintf(stderr, "ERROR; Recieve is \n");
+			}
+			merge_user_list(request, &data);
 		}
 
 	}
@@ -477,28 +518,36 @@ int main(int argc, const char * argv[]) {
 	init_chat_list();
 	FD_ZERO(&readfds);
 
+	//initializeRequest("141.22.27.106");
+
 	/**
 	 * Starten der Threads.
 	 */
 	pthread_t eventDispatcherThread;
-	int eventDispatcher = pthread_create(&eventDispatcherThread,NULL, eventDispatcherThreadMain,NULL);
+	int eventDispatcher = pthread_create(&eventDispatcherThread, NULL,
+			eventDispatcherThreadMain, NULL);
 	if (eventDispatcher) {
-		fprintf(stderr, "ERROR; return code from pthread_create() is %d\n",eventDispatcher);
+		fprintf(stderr, "ERROR; return code from pthread_create() is %d\n",
+				eventDispatcher);
 		return EXIT_FAILURE;
 	}
 
 	int i = 0;
 	pthread_t workerThread[WORKER_THREADS];
 	for (i = 0; i < WORKER_THREADS; i++) {
-		int worker = pthread_create(&workerThread[i], NULL, workerThreadMain,NULL);
+		int worker = pthread_create(&workerThread[i], NULL, workerThreadMain,
+				NULL);
 		if (worker) {
-			fprintf(stderr, "ERROR; return code from pthread_create() is %d\n",worker);
+			fprintf(stderr, "ERROR; return code from pthread_create() is %d\n",
+					worker);
 			return EXIT_FAILURE;
 		}
 	}
 
+
 	// Main Thread Funktion.
 	connectionHandling();
+
 
 	return 0;
 }
