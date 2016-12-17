@@ -1,5 +1,4 @@
 #ifdef HAVE_CONFIG_H
-#include <config.h>
 #endif
 #include "client.h"
 
@@ -7,15 +6,9 @@
 //#define SERVER_IP "141.22.27.103"
 #define SERVER_IP "127.0.0.1"
 
-#define MAX_MESSAGE_SIZE 255
-#define KOMMANDO_SIZE 255
-
-#define KEIN_LOGOUT 1
-#define LOGOUT 0
-
 char username[USERNAME_REAL_SIZE];
 
-//API functionen
+//Initialisiert einen LogIN/LogOUT Header
 void init_log_in_out(login_out* data, int length, int flags) {
 	data->common_header.length = length;
 	data->common_header.type = LOG_IN_OUT_HEADER;
@@ -24,7 +17,7 @@ void init_log_in_out(login_out* data, int length, int flags) {
 }
 
 /**
- * Log_in Vorgang behandlung.
+ * Behandlung des Login Vorganges
  */
 int log_in(int socketFD, char* username) {
 
@@ -35,7 +28,6 @@ int log_in(int socketFD, char* username) {
 
 	snprintf(&login_data.login_out_header.username[0], USERNAME_REAL_SIZE, "%s",
 			username);
-
 
 	ssize_t bytes_send = send(socketFD, (void*) &login_data, sizeof(login_data),
 			0);
@@ -49,13 +41,19 @@ int log_in(int socketFD, char* username) {
 	//The return value will be 0 when the peer has performed an orderly shutdown.
 	common_header header;
 	ssize_t numBytesRcvd = recv(socketFD, (void*) &header, sizeof(header), 0);
-	if (numBytesRcvd < 1) {
+	if (numBytesRcvd == 0) {
+		perror("No Connection");
+		fprintf(stderr, ": Der Server hat die Verbindung geschlossen.\n");
+		exit(EXIT_FAILURE);
+	}
+	if (numBytesRcvd < 0) {
 		perror("Recieve ERROR");
 		fprintf(stderr, "ERROR: Beim Recieve.\n");
 	}
 
 	if (header.version == SUPPORTED_VERSION) {
 		if (header.flags == (DUP | SYN | ACK)) {
+			printf("Der Username ist bereits vergeben.\n");
 			return -1;
 		}
 		if (header.flags == (SYN | ACK)) {
@@ -71,6 +69,7 @@ int log_in(int socketFD, char* username) {
  */
 int infoLoad(int socketFD) {
 	common_header header;
+	memset((void *) &header, 0, sizeof(common_header));
 
 	header.flags = GET;
 	header.length = 0;
@@ -90,7 +89,7 @@ int infoLoad(int socketFD) {
 /**
  * Ausloggen des Users.
  */
-void userCloseConnection(int socket_fd, struct sockaddr_in sa) {
+void userCloseConnection(int socket_fd) {
 	login_out login_data;
 	memset((void *) &login_data, 0, sizeof(login_out));
 
@@ -115,7 +114,7 @@ void userCloseConnection(int socket_fd, struct sockaddr_in sa) {
 /**
  * Nachricht zu einem Benutzer schicken.
  */
-void sendMessageTo(int SocketFD, struct sockaddr_in sa, char* username_recv,
+void sendMessageTo(int SocketFD,char* username_recv,
 		int length_username, char* message, int length_message) {
 
 	common_header header;
@@ -161,29 +160,31 @@ void sendMessageTo(int SocketFD, struct sockaddr_in sa, char* username_recv,
 		fprintf(stderr, "ERROR: Kann nicht zum Message stream schreiben. \n");
 	}
 
-	// Todo anschauen fehlerbehandlung
 	fflush(outstream);
 
 }
 
 /**
- * Behandeln der einkommenden Nachrichten.
+ * Behandeln der einkommenden Nachrichten vom Server.
  */
 void* messageHandlerMain(void * socket_fd_p) {
 
-	char loutoutflag= KEIN_LOGOUT;
+	char loutoutflag = KEIN_LOGOUT;
+	int socket_fd = *((int*) socket_fd_p);
+	common_header header;
 	while (loutoutflag) {
-		int socket_fd = *((int*) socket_fd_p);
-		common_header header;
 		memset((void *) &header, 0, sizeof(common_header));
 
+		//Recieven des Headers
 		ssize_t numBytesRcvd = recv(socket_fd, (void*) &header,
 				sizeof(common_header), 0);
-
 		if (numBytesRcvd == 0) {
-			// Programm sicher beeden
+			perror("No Connection");
+			fprintf(stderr, ": Der Server hat die Verbindung geschlossen.\n");
+			loutoutflag = LOGOUT;
 		}
-		if (header.version == SUPPORTED_VERSION) {
+
+		if (header.version == SUPPORTED_VERSION && loutoutflag == KEIN_LOGOUT) {
 
 			// Ausgabe der Message
 			if (header.type == MESSAGE_HEADER) {
@@ -192,13 +193,19 @@ void* messageHandlerMain(void * socket_fd_p) {
 				char payload[255];
 				memset((void *) payload, 0, sizeof(payload));
 
-
+				//Den Inhalt der Nachricht empfnagen
 				numBytesRcvd = recv(socket_fd, (void*) &data,
 						sizeof(message_info), 0);
 				numBytesRcvd = recv(socket_fd, (void*) &payload,
 						sizeof(char) * header.length, 0);
-				printf("\n %s: %s \n", data.source_username, payload);
-
+				if (numBytesRcvd == 0) {
+					perror("No Connection");
+					fprintf(stderr,
+							": Der Server hat die Verbindung geschlossen.\n");
+					loutoutflag = LOGOUT;
+				} else {
+					printf("\n %s: %s \n", data.source_username, payload);
+				}
 			}
 
 			// Ausgabe der Controll Information
@@ -209,23 +216,39 @@ void* messageHandlerMain(void * socket_fd_p) {
 					memset((void *) &data, 0, sizeof(controll_info));
 					ssize_t numBytesRcvd = recv(socket_fd, (void*) &data,
 							sizeof(controll_info), 0);
-					if (numBytesRcvd < 0) {
-						// abfangen.
+					if (numBytesRcvd == 0) {
+						perror("No Connection");
+						fprintf(stderr,
+								": Der Server hat die Verbindung geschlossen.\n");
+						loutoutflag = LOGOUT;
+					} else {
+						printf("%d: Username: %s \n", i, data.username);
 					}
-					printf("%d: Username: %s \n", i, data.username);
 				}
 			}
 
 			if (header.type == LOG_IN_OUT_HEADER) {
 				if (header.flags == (FIN | ACK)) {
 					printf("Logout war erfolgreich \n");
-					loutoutflag=LOGOUT;
+					loutoutflag = LOGOUT;
+				} else {
+					printf("Logout Header mit falschen Flags erhalten. \n");
 				}
-
 			}
+
+			if (!(header.type == LOG_IN_OUT_HEADER
+					|| header.type == CONTROL_INFO_HEADER
+					|| header.type == MESSAGE_HEADER)) {
+				printf("Der Nachrichtentyp %d wird nicht unterstuezt. \n",
+						header.type);
+			}
+
+		} else {
+			printf("Der Header enthaelt die unbekannte Versionnummer %d \n",
+					header.version);
 		}
 	}
- return NULL;
+	return NULL;
 }
 
 /**
@@ -257,6 +280,7 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
+	//Connection zum Server aufbauen
 	if (connect(SocketFD, (struct sockaddr *) &sa, sizeof sa) == -1) {
 		perror("connect failed");
 		close(SocketFD);
@@ -266,15 +290,14 @@ int main(int argc, char *argv[]) {
 	 ** LOG in Phase
 	 **
 	 */
-	char eingebenerNutzername[USERNAME_REAL_SIZE];
 	int status = 0;
 	int i = 0;
 	do {
 		printf("Bitte geben Sie einen gueltigen Benutzernamen ein: \n");
-		fgets(eingebenerNutzername, USERNAME_REAL_SIZE, stdin);
-		eingebenerNutzername[strcspn(eingebenerNutzername, "\n")] = 0;
-		printf("Einen Momment bitte:%s:\n", eingebenerNutzername);
-		status = log_in(SocketFD, eingebenerNutzername);
+		fgets(username, USERNAME_REAL_SIZE, stdin);
+		username[strcspn(username, "\n")] = 0;
+		printf("Einen Momment bitte:%s:\n", username);
+		status = log_in(SocketFD, username);
 		if (status < 0) {
 			printf("Der Login Vorgang ist fehlgeschlagen.\n");
 		}
@@ -287,13 +310,9 @@ int main(int argc, char *argv[]) {
 	} while (status < 0);
 
 	/**
-	 **
-	 ** Handle über den Socket.
-	 **
+	 **Thread starten um Nachrichten vom Server zu empfangen
 	 */
-
 	if (status == 0) {
-		snprintf(username, USERNAME_REAL_SIZE, "%s", eingebenerNutzername);
 		pthread_t messageHandlerThread;
 		int* socket_fd_p = &SocketFD;
 		int messageHandler = pthread_create(&messageHandlerThread, NULL,
@@ -318,13 +337,13 @@ int main(int argc, char *argv[]) {
 			memset((void *) &command, 0, 255 * sizeof(char));
 			fgets(command, KOMMANDO_SIZE, stdin);
 			command[strcspn(command, "\n")] = 0;
-			if (strcmp(command, "/info") == 0) {
+			if (strcasecmp(command, "/info") == 0) {
 				infoLoad(SocketFD);
-			} else if (strcmp(command, "/exit") == 0) {
-				userCloseConnection(SocketFD, sa);
+			} else if (strcasecmp(command, "/exit") == 0) {
+				userCloseConnection(SocketFD);
 				logoutflag = LOGOUT;
 				return 0;
-			} else if (strcmp(command, "/msg") == 0) {
+			} else if (strcasecmp(command, "/msg") == 0) {
 				char message[MAX_MESSAGE_SIZE];
 				char username_dest[USERNAME_REAL_SIZE];
 				printf("An wenn wollen Sie eine Nachricht schicken ? \n");
@@ -332,11 +351,10 @@ int main(int argc, char *argv[]) {
 				printf("\n und nun bitte noch die Nachricht: \n");
 				fgets(message, MAX_MESSAGE_SIZE, stdin);
 				username_dest[strcspn(username_dest, "\n")] = 0;
-				sendMessageTo(SocketFD, sa, username_dest, USERNAME_REAL_SIZE,
-						message, MAX_MESSAGE_SIZE);
+				sendMessageTo(SocketFD, username_dest,
+				USERNAME_REAL_SIZE, message, MAX_MESSAGE_SIZE);
 			} else {
 				printf("Unbekannter Befehl \n");
-				// sendToAllMessage(SocketFD, sa, command, 255);
 			}
 
 		}

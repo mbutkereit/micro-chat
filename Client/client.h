@@ -12,6 +12,7 @@
 #include <netdb.h>
 #include <pthread.h>
 #include <stdlib.h>
+//#include <config.h>
 
 #define SUPPORTED_VERSION 1
 #define USERNAME_REAL_SIZE 15
@@ -19,6 +20,10 @@
 #define DEFAULT_HOPS 0
 #define MAX_MESSAGE_SIZE 255
 #define ONLY_THREE_BIT_MASK 0x03
+#define MAX_MESSAGE_SIZE 255
+#define KOMMANDO_SIZE 255
+#define KEIN_LOGOUT 1
+#define LOGOUT 0
 
 // Types
 enum types {
@@ -58,11 +63,10 @@ typedef struct {
 	char destination_username[USERNAME_PSEUDO_SIZE];
 } message_info;
 
-struct controll_info {
+typedef struct  {
 	char username[USERNAME_PSEUDO_SIZE];
 	uint32_t hops;
-};
-typedef struct controll_info controll_info;
+}controll_info;
 
 typedef struct {
 	common_header common_header;
