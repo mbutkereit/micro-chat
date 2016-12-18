@@ -11,6 +11,8 @@ pthread_mutex_t lock_list;
 extern fd_set readfds; //todo fix that
 extern int highest_fd; //todo fix that
 
+
+
 void init_chat_list() {
 	LIST_INIT(&chat_list_head);
 	if (pthread_mutex_init(&lock_list, NULL) != 0) {
@@ -227,11 +229,28 @@ int merge_user_list(connection_item* item ,controll_info* user){
 void notify_all_by_update(){
     controll_info_list* controll_info_table = NULL;
     
+    int array[50];
+    int i=0;
+    int j=0;
+    char wurdeSchonGeschickt=0;
+
     LIST_FOREACH(controll_info_table, &chat_list_head, entries)
     {
         //todo send nur an einen socket eintrag 
-        if(controll_info_table->controll_info.hops != 0){
-          sendControllInfo(controll_info_table->connection_item,NO_FLAGS);
+        if(controll_info_table->controll_info.hops < 2){
+        	wurdeSchonGeschickt=0;
+        	for(j=0;j<i;j++){
+        		if(controll_info_table->connection_item->socketFD == array[j]){
+        			wurdeSchonGeschickt=1;
+        		}
+        	}
+        	if(!(wurdeSchonGeschickt)){
+            	array[i]=controll_info_table->connection_item->socketFD;
+              sendControllInfo(controll_info_table->connection_item,NO_FLAGS);
+              printf("Controlinfo geschickt an Server: %d",controll_info_table->connection_item->socketFD);
+              i++;
+        	}
+
         }
     }
 

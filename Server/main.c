@@ -278,27 +278,33 @@ int RecieveHeaderTCP(common_header* header, int clntSocket) {
 				"ERROR: Die Message kann nicht in den Buffer geschrieben werden. \n");
 	}
 
-	return 0;
+	if (numBytesRcvd == 0) {
+		return 0;
+	}
+
+	return 1;
 }
 
 /**
  * Thread um die neu eintrefenden Events zu dispatchen.
  */
 void* eventDispatcherThreadMain() {
-	tv.tv_sec = 10;
+	tv.tv_sec = SELECT_WARTEZEIT;
 	fd_set read_fd_set;
 
 	for (;;) {
 		read_fd_set = readfds; // readfds wuede sonst resetet werden.
 		int rv = select((highest_fd + 1), &read_fd_set, NULL, NULL, &tv); // Highest fd wird erhoeht um 1 laut man.
-		tv.tv_sec = 10;
+		tv.tv_sec = SELECT_WARTEZEIT;
 		if (rv > 0) {
 			checkEvent(&read_fd_set);
 		}
 	}
 }
 
-// Worker Thread.
+/**
+ * Die Workerthreads empfangen die Nachrichten von Sockets aus der Queue
+ */
 void* workerThreadMain() {
 	for (;;) {
 		connection_item* item = dequeue();
@@ -307,6 +313,12 @@ void* workerThreadMain() {
 			memset((void *) &header, 0, sizeof(common_header));
 
 			int header_recieved = RecieveHeaderTCP(&header, item->socketFD);
+			if (header_recieved == 0) {
+				perror("recv");
+				fprintf(stderr,
+						"Die Verbindung von einem Clienten oder Server wurde geschlossen.\n");
+				//@TODO Verbindung schließen remove_user_by_socket(item->socketFD); //
+			}
 
 			if (header_recieved < 0) {
 				fprintf(stderr, "ERROR: Out of memory\n");
@@ -316,22 +328,24 @@ void* workerThreadMain() {
 			if (header.version == SUPPORTED_VERSION) {
 				switch (header.type) {
 				case LOG_IN_OUT_HEADER:
-					fprintf(stderr, "Log Header\n");
+					fprintf(stderr, "Log Header erhalten\n");
 					handleLogin(item, &header);
 					break;
 				case CONTROL_INFO_HEADER:
-					fprintf(stderr, "Control Info Header\n");
+					fprintf(stderr, "Control Info Header erhalten\n");
 					handleControllInfo(item, &header);
 					break;
 				case MESSAGE_HEADER:
-					fprintf(stderr, "Message Header\n");
+					fprintf(stderr, "Message Header erhalten\n");
 					handleMessage(item->socketFD, &header);
 					break;
 				default:
-					fprintf(stderr, "Unbekannter typ\n");
+					fprintf(stderr, "Unbekannter MessageTyp: %d\n",
+							(int) header.type);
 				}
 			} else {
-				fprintf(stderr, "Unbekannter headerversion\n");
+				fprintf(stderr, "Unbekannte Headerversion: %d\n",
+						(int) header.version);
 				// Ueberpruefe MAXIMUM_TIME_TO_LIVE und entferne anderenfalls den eintrag.
 				item->ttl++;
 				if (item->ttl > MAXIMUM_TIME_TO_LIVE) {
@@ -536,7 +550,7 @@ int main(int argc, const char * argv[]) {
 	pthread_t workerThread[WORKER_THREADS];
 	for (i = 0; i < WORKER_THREADS; i++) {
 		int worker = pthread_create(&workerThread[i], NULL, workerThreadMain,
-				NULL);
+		NULL);
 		if (worker) {
 			fprintf(stderr, "ERROR; return code from pthread_create() is %d\n",
 					worker);
@@ -544,10 +558,8 @@ int main(int argc, const char * argv[]) {
 		}
 	}
 
-
 	// Main Thread Funktion.
 	connectionHandling();
-
 
 	return 0;
 }

@@ -10,12 +10,13 @@
 #include "socket_work_queue.h"
 
 
-struct controll_info_list {
+ struct controll_info_list{
 	controll_info controll_info;
 	connection_item* connection_item;
 	LIST_ENTRY(controll_info_list)
 	entries;
 };
+
 
 typedef struct controll_info_list controll_info_list;
 

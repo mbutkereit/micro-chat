@@ -6,7 +6,6 @@
 #include <unistd.h>
 
 #include "client.h"
-#include "server.h"
 #include "chat_list.h"
 #include "socket_work_queue.h"
 
@@ -18,6 +17,7 @@
 #define MAX_LOG_IN_TRYS 3
 #define WORKER_THREADS 2
 #define LOCAL_IP "127.0.0.1"
+#define SELECT_WARTEZEIT 10
 
 // Liste der Prototypen.
 void sendControllInfo(connection_item* item , uint8_t flags);
