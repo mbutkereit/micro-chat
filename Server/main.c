@@ -511,20 +511,7 @@ void initializeRequest(char* ip) {
 
 	request->socketFD = socketFD;
 	request->ttl = 0;
-	int i = 0;
-	if (header.version == SUPPORTED_VERSION) {
-		for (i = 0; i < header.length; i++) {
-			memset((void *) &data, 0, sizeof(controll_info));
-
-			ssize_t numBytesRcvd = recv(socketFD, (void*) &data,
-					sizeof(controll_info), 0);
-			if (numBytesRcvd < 0) {
-				fprintf(stderr, "ERROR; Recieve is \n");
-			}
-			merge_user_list(request, &data);
-		}
-
-	}
+	handleControllInfo(request,&header);
 }
 
 /**
