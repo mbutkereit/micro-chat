@@ -190,7 +190,7 @@ controll_info_list* _find_user_by_socket(int socketFD) {
  * (Sockets sind nicht eindeutig da es fuer einen user mehrfach den selben geben kann.)
  * (oder zumindest an den punkten validieren wo es noetig ist den richtigen user zu löschen.)
  */
-int remove_user_by_socket(int socketFD) {
+int remove_user_by_socket(int socketFD, int notify) {
 	int status = -1;
 	controll_info_list *entry = _find_user_by_socket(socketFD);
 
@@ -211,9 +211,9 @@ int remove_user_by_socket(int socketFD) {
 		pthread_mutex_unlock(&lock_list);
 		entry = _find_user_by_socket(socketFD);
 	}
-
-	notify_all_by_update();
-
+	if (notify) {
+		notify_all_by_update();
+	}
 	return status;
 }
 

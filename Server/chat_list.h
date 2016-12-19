@@ -33,7 +33,7 @@ void checkEvent(fd_set*);
 controll_info_list* findUserByName(char* username);
 controll_info_list* _find_user_by_socket(int);
 int merge_user_list(connection_item* item ,controll_info* user);
-int remove_user_by_socket(int socketFD);
+int remove_user_by_socket(int socketFD,int notify);
 void notify_all_by_update();
 void checkEventChatList(fd_set* test);
 

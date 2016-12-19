@@ -193,6 +193,7 @@ void handleControllInfo(connection_item* item, common_header* old_header) {
 		add_to_server_list(item);
 		controll_info data;
 		int i = 0;
+		remove_user_by_socket(item->socketFD,0);
 		for (i = 0; i < old_header->length; i++) {
 			// Zuruecksetzten der Information nach jeder behandlung.
 			memset((void *) &data, 0, sizeof(controll_info));
@@ -359,7 +360,7 @@ void* workerThreadMain() {
 				item->ttl++;
 				if (item->ttl > MAXIMUM_TIME_TO_LIVE) {
 					//todo umbennen es werden alle user gelöscht.
-					remove_user_by_socket(item->socketFD); //
+					remove_user_by_socket(item->socketFD,1); //
 				}
 			}
 
@@ -529,7 +530,7 @@ int main(int argc, const char * argv[]) {
 	init_server_list();
 	FD_ZERO(&readfds);
 
-	initializeRequest("141.22.27.106");
+	//initializeRequest("141.22.27.106");
 
 	/**
 	 * Starten der Threads.
