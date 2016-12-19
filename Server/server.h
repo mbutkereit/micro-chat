@@ -7,6 +7,7 @@
 
 #include "client.h"
 #include "chat_list.h"
+#include "server_list.h"
 #include "socket_work_queue.h"
 
 #define DEFAULT_PORT 9012 // Default Port laut Dokumentation.

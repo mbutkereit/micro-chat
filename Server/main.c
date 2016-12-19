@@ -179,9 +179,16 @@ void handleControllInfo(connection_item* item, common_header* old_header) {
 
 	if (old_header->flags == GET) {
 		sendControllInfo(item, NO_FLAGS);
+		// Fuegt den Socket dem Select hinzu falls kein User existiert.
+		controll_info_list*  list = _find_user_by_socket(item->socketFD);
+		if(list == NULL){
+			add_to_server_list(item);
+		}
+
 	}
 
 	if (old_header->flags == NO_FLAGS) {
+		add_to_server_list(item);
 		controll_info data;
 		int i = 0;
 		for (i = 0; i < old_header->length; i++) {
@@ -530,9 +537,10 @@ int main(int argc, const char * argv[]) {
 	 */
 	init_queue();
 	init_chat_list();
+	init_server_list();
 	FD_ZERO(&readfds);
 
-	//initializeRequest("141.22.27.106");
+	initializeRequest("141.22.27.107");
 
 	/**
 	 * Starten der Threads.

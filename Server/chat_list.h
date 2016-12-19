@@ -9,7 +9,6 @@
 #include "server.h"
 #include "socket_work_queue.h"
 
-
  struct controll_info_list{
 	controll_info controll_info;
 	connection_item* connection_item;
@@ -29,7 +28,7 @@ int checkUserConnectedWithMe(char* username);
 void writeChatListToBuffer(FILE* socketStream);
 int find_next_smaller_socket_id();
 void init_chat_list();
-void checkEvent();
+void checkEvent(fd_set*);
 controll_info_list* findUserByName(char* username);
 controll_info_list* _find_user_by_socket(int);
 int merge_user_list(connection_item* item ,controll_info* user);
