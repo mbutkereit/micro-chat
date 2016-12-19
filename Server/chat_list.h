@@ -8,6 +8,7 @@
 #include "queue.h"
 #include "server.h"
 #include "socket_work_queue.h"
+#include "server_list.h"
 
  struct controll_info_list{
 	controll_info controll_info;
@@ -34,5 +35,6 @@ controll_info_list* _find_user_by_socket(int);
 int merge_user_list(connection_item* item ,controll_info* user);
 int remove_user_by_socket(int socketFD);
 void notify_all_by_update();
+void checkEventChatList(fd_set* test);
 
 #endif /* chat_list_h */

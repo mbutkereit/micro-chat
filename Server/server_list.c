@@ -79,3 +79,22 @@ void notify_all_by_update() {
 		sendControllInfo(serverlist->connection_item, NO_FLAGS);
 	}
 }
+
+void check_event_list(fd_set* test){
+	server_list* serverlist = NULL;
+
+	// Server events queuen.
+	pthread_mutex_lock(&lock_server_list);
+	LIST_FOREACH(serverlist, &server_list_head, entries_server)
+	{
+		if (FD_ISSET(serverlist->connection_item->socketFD, test)
+				&& serverlist->connection_item->status == 0) {
+
+			serverlist->connection_item->status = QUEUED;
+			enqueue(serverlist->connection_item);
+
+		}
+
+	}
+	pthread_mutex_unlock(&lock_server_list);
+}

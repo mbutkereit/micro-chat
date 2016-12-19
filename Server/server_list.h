@@ -18,5 +18,6 @@ typedef struct server_list server_list;
 
 void init_server_list();
 void add_to_server_list(connection_item* item);
+void check_event_list(fd_set* test);
 
 #endif /* chat_list_h */

@@ -11,6 +11,7 @@ pthread_mutex_t lock_list;
 extern fd_set readfds; //todo fix that
 extern int highest_fd; //todo fix that
 
+
 /**
  *
  */
@@ -236,32 +237,30 @@ int merge_user_list(connection_item* item, controll_info* user) {
 	return status;
 }
 
-
-
-/**
- * Funktion um das naechst eintreffende event zu Queuen.
- */
-void checkEvent(fd_set* test) {
+void checkEventChatList(fd_set* test){
 	controll_info_list *controll_info_table = NULL;
 
+	//Client events queuen.
 	pthread_mutex_lock(&lock_list);
-
 	LIST_FOREACH(controll_info_table, &chat_list_head, entries)
 	{
 		if (FD_ISSET(controll_info_table->connection_item->socketFD, test)
-				&& controll_info_table->connection_item->status == 0) {
-
+				&& controll_info_table->connection_item->status == 0
+				&& controll_info_table->controll_info.hops == 1) {
 			controll_info_table->connection_item->status = QUEUED;
 			enqueue(controll_info_table->connection_item);
 
 		}
 	}
 	pthread_mutex_unlock(&lock_list);
-	/*
-	 controll_info_list*  list = _find_user_by_socket(item->socketFD);
-	 if(list == NULL){
-	 FD_SET(item->socketFD, &readfds);
-	 highest_fd = item->socketFD;
-	 }*/
-
 }
+
+
+/**
+ * Funktion um das naechst eintreffende event zu Queuen.
+ */
+void checkEvent(fd_set* test) {
+	check_event_list(test);
+	checkEventChatList(test);
+}
+
