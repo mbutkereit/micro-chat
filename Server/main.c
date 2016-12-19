@@ -48,7 +48,7 @@ int handleLogin(connection_item* item, common_header* header) {
 		controll_info_list* user = findUserByName(data.username);
 		if (user != NULL) {
 			//Hier ist es kein Problem da die Nutzer an diesem Server eigene Sockets bekommen.
-			remove_user_by_socket(item->socketFD);
+		//	remove_all_user_bysocket(item->socketFD);
 			common_header header;
 
 			header.flags = FIN | ACK;
@@ -153,6 +153,8 @@ void sendControllInfo(connection_item* item, uint8_t flags) {
 	header.version = SUPPORTED_VERSION;
 	header.type = CONTROL_INFO_HEADER;
 	header.length = controll_info_usage_size;
+
+
 
 	FILE *outstream = fdopen(item->socketFD, "w");
 
@@ -527,7 +529,7 @@ int main(int argc, const char * argv[]) {
 	init_server_list();
 	FD_ZERO(&readfds);
 
-	initializeRequest("141.22.27.107");
+	initializeRequest("141.22.27.106");
 
 	/**
 	 * Starten der Threads.

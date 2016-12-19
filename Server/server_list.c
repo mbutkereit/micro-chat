@@ -11,7 +11,6 @@ pthread_mutex_t lock_server_list;
 extern fd_set readfds;
 extern int highest_fd;
 
-
 /**
  *
  */
@@ -27,23 +26,24 @@ void init_server_list() {
 /**
  *
  */
-void add_to_server_list(connection_item* item){
+void add_to_server_list(connection_item* item) {
 	server_list *element = (server_list *) malloc(sizeof(server_list));
-    element->connection_item = item;
+	element->connection_item = item;
 	pthread_mutex_lock(&lock_server_list);
-	char status =1;
+	char status = 1;
 	server_list* serverlist = NULL;
 	LIST_FOREACH(serverlist, &server_list_head, entries_server)
 	{
-		if(item->socketFD==serverlist->connection_item->socketFD){
-			status=0;
+		if (item->socketFD == serverlist->connection_item->socketFD) {
+			status = 0;
 		}
 	}
 
-
-	if(status){
+	if (status) {
 		FD_SET(item->socketFD, &readfds);
-		highest_fd = item->socketFD;
+	if (highest_fd < item->socketFD) {
+			highest_fd = item->socketFD;
+		}
 		server_list_usage_size++;
 		LIST_INSERT_HEAD(&server_list_head, element, entries_server);
 	}
@@ -51,19 +51,17 @@ void add_to_server_list(connection_item* item){
 	pthread_mutex_unlock(&lock_server_list);
 }
 
-
-
 /**
  *
  */
-void remove_from_server_list(server_list* entry){
+void remove_from_server_list(server_list* entry) {
 	pthread_mutex_lock(&lock_server_list);
-			if (highest_fd == entry->connection_item->socketFD) {
-				highest_fd = find_next_smaller_socket_id();
-			}
-			FD_CLR( entry->connection_item->socketFD, &readfds);
-			LIST_REMOVE(entry, entries_server);
-			server_list_usage_size--;
+	if (highest_fd == entry->connection_item->socketFD) {
+		highest_fd = find_next_smaller_socket_id();
+	}
+	FD_CLR(entry->connection_item->socketFD, &readfds);
+	LIST_REMOVE(entry, entries_server);
+	server_list_usage_size--;
 	pthread_mutex_unlock(&lock_server_list);
 }
 
@@ -80,7 +78,7 @@ void notify_all_by_update() {
 	}
 }
 
-void check_event_list(fd_set* test){
+void check_event_list(fd_set* test) {
 	server_list* serverlist = NULL;
 
 	// Server events queuen.
@@ -90,6 +88,8 @@ void check_event_list(fd_set* test){
 		if (FD_ISSET(serverlist->connection_item->socketFD, test)
 				&& serverlist->connection_item->status == 0) {
 
+			fprintf(stderr, "IN check_event_list  %d\n",
+					serverlist->connection_item->socketFD);
 			serverlist->connection_item->status = QUEUED;
 			enqueue(serverlist->connection_item);
 
