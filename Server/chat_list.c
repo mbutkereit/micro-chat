@@ -48,7 +48,10 @@ void add_new_controll_info(char username[USERNAME_REAL_SIZE], uint16_t hops,
 	LIST_INSERT_HEAD(&chat_list_head, controll_info_table, entries);
 
 	pthread_mutex_unlock(&lock_list);
+	fprintf(stderr, "add_new_controll_info() Notify\n");
+
 	notify_all_by_update();
+
 }
 
 /**
@@ -212,6 +215,7 @@ int remove_user_by_socket(int socketFD, int notify) {
 		entry = _find_user_by_socket(socketFD);
 	}
 	if (notify) {
+		fprintf(stderr, "remove_user_by_socket() Notify\n");
 		notify_all_by_update();
 	}
 	return status;
@@ -248,7 +252,7 @@ void checkEventChatList(fd_set* test) {
 		if (FD_ISSET(controll_info_table->connection_item->socketFD, test)
 				&& controll_info_table->connection_item->status == 0
 				&& controll_info_table->controll_info.hops == 1) {
-			fprintf(stderr,"IN checkEventChatList %d\n",controll_info_table->connection_item->socketFD);
+			//	fprintf(stderr,"IN checkEventChatList %d\n",controll_info_table->connection_item->socketFD);
 			controll_info_table->connection_item->status = QUEUED;
 			enqueue(controll_info_table->connection_item);
 

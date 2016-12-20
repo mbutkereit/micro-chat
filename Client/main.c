@@ -93,7 +93,7 @@ void userCloseConnection(int socket_fd) {
 	login_out login_data;
 	memset((void *) &login_data, 0, sizeof(login_out));
 
-	init_log_in_out(&login_data, USERNAME_REAL_SIZE, NO_FLAGS);
+	init_log_in_out(&login_data, USERNAME_REAL_SIZE, FIN);
 
 	snprintf(&login_data.login_out_header.username[0], USERNAME_REAL_SIZE, "%s",
 			username);

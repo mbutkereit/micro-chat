@@ -28,27 +28,32 @@ void init_server_list() {
  */
 void remove_from_Serverlist_by_Socket(int SocketFD, int notify) {
 	server_list* serverlist = NULL;
-	server_list* remEntry = NULL;
+	server_list* liste = NULL;
 	pthread_mutex_lock(&lock_server_list);
 	LIST_FOREACH(serverlist, &server_list_head, entries_server)
 	{
 		if (SocketFD == serverlist->connection_item->socketFD) {
-			remEntry = serverlist;
+			liste=serverlist;
+
 		}
 	}
+	if(liste != NULL){
+		if (highest_fd == liste->connection_item->socketFD) {
+			highest_fd = find_next_smaller_socket_id();
+		}
+		fprintf(stderr,"Der Server %d wurde aus der Serverliste gelöscht",SocketFD);
+		FD_CLR(liste->connection_item->socketFD, &readfds);
+		LIST_REMOVE(liste, entries_server);
+		server_list_usage_size--;
+		fprintf(stderr,"Der Server %d wurde aus der Serverliste gelöscht",SocketFD);
 
-	if (highest_fd == remEntry->connection_item->socketFD) {
-		highest_fd = find_next_smaller_socket_id();
+
+		if (notify) {
+			notify_all_by_update();
+		}
 	}
-	FD_CLR(remEntry->connection_item->socketFD, &readfds);
-	LIST_REMOVE(remEntry, entries_server);
-	server_list_usage_size--;
-	fprintf(stderr,"Der Server %d wurde aus der Serverliste gelöscht",SocketFD);
-
 	pthread_mutex_unlock(&lock_server_list);
-	if (notify) {
-		notify_all_by_update();
-	}
+
 }
 /**
  *
@@ -115,8 +120,8 @@ void check_event_list(fd_set* test) {
 		if (FD_ISSET(serverlist->connection_item->socketFD, test)
 				&& serverlist->connection_item->status == 0) {
 
-			fprintf(stderr, "IN check_event_list  %d\n",
-					serverlist->connection_item->socketFD);
+		//	fprintf(stderr, "IN check_event_list  %d\n",
+//					serverlist->connection_item->socketFD);
 			serverlist->connection_item->status = QUEUED;
 			enqueue(serverlist->connection_item);
 

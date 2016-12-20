@@ -52,11 +52,10 @@ int handleLogin(connection_item* item, common_header* header) {
 //			return 0;
 //		}
 
-
 		controll_info_list* user = findUserByName(data.username);
 		if (user != NULL) {
 			//Hier ist es kein Problem da die Nutzer an diesem Server eigene Sockets bekommen.
-		//	remove_all_user_bysocket(item->socketFD);
+			//	remove_all_user_bysocket(item->socketFD);
 			common_header header;
 
 			header.flags = FIN | ACK;
@@ -162,8 +161,6 @@ void sendControllInfo(connection_item* item, uint8_t flags) {
 	header.type = CONTROL_INFO_HEADER;
 	header.length = controll_info_usage_size;
 
-
-
 	FILE *outstream = fdopen(item->socketFD, "w");
 
 	if (fwrite(&header, sizeof(common_header), 1, outstream) != 1) {
@@ -190,8 +187,8 @@ void handleControllInfo(connection_item* item, common_header* old_header) {
 	if (old_header->flags == GET) {
 		sendControllInfo(item, NO_FLAGS);
 		// Fuegt den Socket dem Select hinzu falls kein User existiert.
-		controll_info_list*  list = _find_user_by_socket(item->socketFD);
-		if(list == NULL){
+		controll_info_list* list = _find_user_by_socket(item->socketFD);
+		if (list == NULL) {
 			add_to_server_list(item);
 		}
 
@@ -201,7 +198,7 @@ void handleControllInfo(connection_item* item, common_header* old_header) {
 		add_to_server_list(item);
 		controll_info data;
 		int i = 0;
-		remove_user_by_socket(item->socketFD,0);
+		remove_user_by_socket(item->socketFD, 0);
 		for (i = 0; i < old_header->length; i++) {
 			// Zuruecksetzten der Information nach jeder behandlung.
 			memset((void *) &data, 0, sizeof(controll_info));
@@ -290,17 +287,19 @@ int RecieveHeaderTCP(common_header* header, int clntSocket) {
 
 	numBytesRcvd = recv(clntSocket, (void*) header, sizeof(common_header), 0);
 
+	if (numBytesRcvd == 0) {
+		fprintf(stderr, "Verbindung zum Socket %d unterbrochen. \n",
+				clntSocket);
+		remove_user_by_socket(clntSocket, 1);
+		remove_from_Serverlist_by_Socket(clntSocket,1);
+		return 0;
+	}
+
 	if (numBytesRcvd < 0) {
 		perror("recv");
 		fprintf(stderr,
 				"ERROR: Die Message kann nicht in den Buffer geschrieben werden. \n");
-	}
-
-	if (numBytesRcvd == 0) {
-		remove_user_by_socket(clntSocket,1);
-	//	remove_from_Serverlist_by_Socket(clntSocket,1);
-		fprintf(stderr,"Verbindung zum Socket %d unterbrochen. \n",clntSocket);
-		return 0;
+		return -1;
 	}
 
 	return 1;
@@ -335,11 +334,40 @@ void* workerThreadMain() {
 			memset((void *) &header, 0, sizeof(common_header));
 
 			int header_recieved = RecieveHeaderTCP(&header, item->socketFD);
-			if (header_recieved == 0) {
-				perror("recv");
-				fprintf(stderr,
-						"Die Verbindung von einem Clienten oder Server wurde geschlossen.\n");
+			if (header_recieved <= 0) {
+
 				//@TODO Verbindung schließen remove_user_by_socket(item->socketFD); //
+			}else{
+				if (header.version == SUPPORTED_VERSION) {
+					switch (header.type) {
+					case LOG_IN_OUT_HEADER:
+						fprintf(stderr, "Log Header erhalten\n");
+						handleLogin(item, &header);
+						break;
+					case CONTROL_INFO_HEADER:
+						fprintf(stderr, "Control Info Header erhalten\n");
+						handleControllInfo(item, &header);
+						break;
+					case MESSAGE_HEADER:
+						fprintf(stderr, "Message Header erhalten\n");
+						handleMessage(item->socketFD, &header);
+						break;
+					default:
+						fprintf(stderr, "Unbekannter MessageTyp: %d\n",
+								(int) header.type);
+					}
+
+				}
+				else {
+					fprintf(stderr, "Unbekannte Headerversion: %d\n",
+							(int) header.version);
+					// Ueberpruefe MAXIMUM_TIME_TO_LIVE und entferne anderenfalls den eintrag.
+					item->ttl++;
+					if (item->ttl > MAXIMUM_TIME_TO_LIVE) {
+						//todo umbennen es werden alle user gelöscht.
+						fprintf(stderr,"Maximum Time to Live abgelaufen.");
+						remove_user_by_socket(item->socketFD,1);//
+					}
 			}
 
 			if (header_recieved < 0) {
@@ -347,33 +375,7 @@ void* workerThreadMain() {
 				exit(EXIT_FAILURE);
 			}
 
-			if (header.version == SUPPORTED_VERSION) {
-				switch (header.type) {
-				case LOG_IN_OUT_HEADER:
-					fprintf(stderr, "Log Header erhalten\n");
-					handleLogin(item, &header);
-					break;
-				case CONTROL_INFO_HEADER:
-					fprintf(stderr, "Control Info Header erhalten\n");
-					handleControllInfo(item, &header);
-					break;
-				case MESSAGE_HEADER:
-					fprintf(stderr, "Message Header erhalten\n");
-					handleMessage(item->socketFD, &header);
-					break;
-				default:
-					fprintf(stderr, "Unbekannter MessageTyp: %d\n",
-							(int) header.type);
-				}
-			} else {
-				fprintf(stderr, "Unbekannte Headerversion: %d\n",
-						(int) header.version);
-				// Ueberpruefe MAXIMUM_TIME_TO_LIVE und entferne anderenfalls den eintrag.
-				item->ttl++;
-				if (item->ttl > MAXIMUM_TIME_TO_LIVE) {
-					//todo umbennen es werden alle user gelöscht.
-					remove_user_by_socket(item->socketFD,1); //
-				}
+
 			}
 
 			if (item->status == QUEUED) {
@@ -494,7 +496,6 @@ void initializeRequest(char* ip) {
 
 	common_header header;
 
-
 	header.flags = GET;
 	header.length = 0;
 	header.type = CONTROL_INFO_HEADER;
@@ -527,7 +528,7 @@ void initializeRequest(char* ip) {
 
 	request->socketFD = socketFD;
 	request->ttl = 0;
-	handleControllInfo(request,&header);
+	handleControllInfo(request, &header);
 }
 
 /**
@@ -543,7 +544,7 @@ int main(int argc, const char * argv[]) {
 	init_server_list();
 	FD_ZERO(&readfds);
 
-	//initializeRequest("141.22.27.106");
+	initializeRequest("141.22.27.107");
 
 	/**
 	 * Starten der Threads.
