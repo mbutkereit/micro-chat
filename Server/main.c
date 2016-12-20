@@ -45,6 +45,14 @@ int handleLogin(connection_item* item, common_header* header) {
 			return -1;
 		}
 
+//		if (numBytesRcvd == 0) {
+//			remove_user_by_socket(item->socketFD,1);
+//			remove_from_Serverlist_by_Socket(item->socketFD,1);
+//			fprintf(stderr,"Verbindung zum Socket %d unterbrochen. \n",item->socketFD);
+//			return 0;
+//		}
+
+
 		controll_info_list* user = findUserByName(data.username);
 		if (user != NULL) {
 			//Hier ist es kein Problem da die Nutzer an diesem Server eigene Sockets bekommen.
@@ -289,6 +297,9 @@ int RecieveHeaderTCP(common_header* header, int clntSocket) {
 	}
 
 	if (numBytesRcvd == 0) {
+		remove_user_by_socket(clntSocket,1);
+	//	remove_from_Serverlist_by_Socket(clntSocket,1);
+		fprintf(stderr,"Verbindung zum Socket %d unterbrochen. \n",clntSocket);
 		return 0;
 	}
 
@@ -310,6 +321,7 @@ void* eventDispatcherThreadMain() {
 			checkEvent(&read_fd_set);
 		}
 	}
+	return NULL;
 }
 
 /**
@@ -373,6 +385,7 @@ void* workerThreadMain() {
 
 		}
 	}
+	return NULL;
 }
 
 /**
@@ -480,7 +493,7 @@ void initializeRequest(char* ip) {
 	}
 
 	common_header header;
-	controll_info data;
+
 
 	header.flags = GET;
 	header.length = 0;
