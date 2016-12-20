@@ -103,11 +103,33 @@ void remove_from_server_list(server_list* entry) {
  */
 void notify_all_by_update() {
 
+	pthread_mutex_lock(&lock_server_list);
 	server_list* serverlist = NULL;
 	LIST_FOREACH(serverlist, &server_list_head, entries_server)
 	{
 		sendControllInfo(serverlist->connection_item, NO_FLAGS);
+
 	}
+	pthread_mutex_unlock(&lock_server_list);
+}
+
+/**
+ * Sucht die höchste FD in der Serverliste
+ */
+int find_highest_FDID_inServerlist(void) {
+
+	pthread_mutex_lock(&lock_server_list);
+	int tmp=0;
+	server_list* serverlist = NULL;
+	LIST_FOREACH(serverlist, &server_list_head, entries_server)
+	{
+		if(serverlist->connection_item->socketFD > tmp){
+			tmp=serverlist->connection_item->socketFD;
+		}
+	}
+
+	pthread_mutex_unlock(&lock_server_list);
+	return tmp;
 }
 
 void check_event_list(fd_set* test) {

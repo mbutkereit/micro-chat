@@ -131,6 +131,11 @@ int find_next_smaller_socket_id() {
 		}
 	}
 
+	int servertmp =find_highest_FDID_inServerlist() ;
+	if(servertmp > temp){
+		temp=servertmp;
+	}
+
 	pthread_mutex_unlock(&lock_list);
 
 	return temp;

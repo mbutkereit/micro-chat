@@ -35,22 +35,27 @@ int handleLogin(connection_item* item, common_header* header) {
 	int status = 0;
 	if (header->flags & FIN) {
 		login_out_header data;
+		memset((void *) &data, 0, sizeof(login_out_header));
 		// Recieve Username.
 		ssize_t numBytesRcvd = recv(item->socketFD, (void*) &data,
 				header->length * sizeof(char), 0);
+
+		if (numBytesRcvd == 0) {
+			remove_user_by_socket(item->socketFD, 1);
+			remove_from_Serverlist_by_Socket(item->socketFD, 1);
+			fprintf(stderr,
+					"Verbindung zum Socket beim LogOut %d unterbrochen. \n",
+					item->socketFD);
+			item->status = REMOVE;
+			return 0;
+		}
+
 		if (numBytesRcvd < 0) {
 			perror("recv");
 			fprintf(stderr,
 					"ERROR: Kann den Username von dem LOG_IN_OUT_HEADER nicht recv\n");
 			return -1;
 		}
-
-//		if (numBytesRcvd == 0) {
-//			remove_user_by_socket(item->socketFD,1);
-//			remove_from_Serverlist_by_Socket(item->socketFD,1);
-//			fprintf(stderr,"Verbindung zum Socket %d unterbrochen. \n",item->socketFD);
-//			return 0;
-//		}
 
 		controll_info_list* user = findUserByName(data.username);
 		if (user != NULL) {
@@ -86,6 +91,15 @@ int handleLogin(connection_item* item, common_header* header) {
 				//recieve header
 				ssize_t numBytesRcvd = recv(socketFD, (void*) &cheader,
 						sizeof(common_header), 0);
+				if (numBytesRcvd == 0) {
+					remove_user_by_socket(item->socketFD, 1);
+					remove_from_Serverlist_by_Socket(item->socketFD, 1);
+					fprintf(stderr,
+							"Verbindung zum Socket beim LogIN %d unterbrochen. \n",
+							item->socketFD);
+					item->status = REMOVE;
+					return 0;
+				}
 				if (numBytesRcvd < 0) {
 					perror("recv");
 					fprintf(stderr,
@@ -104,6 +118,15 @@ int handleLogin(connection_item* item, common_header* header) {
 			// Recieve Username.
 			ssize_t numBytesRcvd = recv(socketFD, (void*) data,
 					header->length * sizeof(char), 0);
+			if (numBytesRcvd == 0) {
+				remove_user_by_socket(item->socketFD, 1);
+				remove_from_Serverlist_by_Socket(item->socketFD, 1);
+				fprintf(stderr,
+						"Verbindung zum Socket beim LogIN %d unterbrochen. \n",
+						item->socketFD);
+				item->status = REMOVE;
+				return 0;
+			}
 			if (numBytesRcvd < 0) {
 				perror("recv");
 				fprintf(stderr,
@@ -205,10 +228,17 @@ void handleControllInfo(connection_item* item, common_header* old_header) {
 
 			ssize_t numBytesRcvd = recv(item->socketFD, (void*) &data,
 					sizeof(controll_info), 0);
+			if (numBytesRcvd == 0) {
+				remove_user_by_socket(item->socketFD, 1);
+				remove_from_Serverlist_by_Socket(item->socketFD, 1);
+				fprintf(stderr, "Verbindung zum Socket %d unterbrochen. \n",
+						item->socketFD);
+				item->status = REMOVE;
+				return;
+			}
 			if (numBytesRcvd < 0) {
 				perror("fwrite");
-				fprintf(stderr,
-						"ERROR: Kann nicht zum Message stream schreiben. \n");
+				fprintf(stderr, "ERROR: Kann nicht empfangen. \n");
 			}
 
 			merge_user_list(item, &data);
@@ -219,7 +249,7 @@ void handleControllInfo(connection_item* item, common_header* old_header) {
 /**
  * Bearbeitet den Versand von Nachrichten.
  */
-void handleMessage(int socketFD, common_header* header) {
+void handleMessage(int socketFD, common_header* header, connection_item* item) {
 
 	message_info data;
 
@@ -230,7 +260,14 @@ void handleMessage(int socketFD, common_header* header) {
 	// Recieve Message Info (Usernames usw ).
 	ssize_t numBytesRcvd = recv(socketFD, (void*) &data, sizeof(message_info),
 			0);
-
+	if (numBytesRcvd == 0) {
+		remove_user_by_socket(item->socketFD, 1);
+		remove_from_Serverlist_by_Socket(item->socketFD, 1);
+		fprintf(stderr, "Verbindung zum Socket %d unterbrochen. \n",
+				item->socketFD);
+		item->status = REMOVE;
+		return;
+	}
 	if (numBytesRcvd < 0) {
 		perror("recv");
 		fprintf(stderr,
@@ -240,6 +277,14 @@ void handleMessage(int socketFD, common_header* header) {
 	// Recieve die Message selbst.
 	numBytesRcvd = recv(socketFD, (void*) &payLoadBuffer,
 			sizeof(char) * header->length, 0);
+	if (numBytesRcvd == 0) {
+		remove_user_by_socket(item->socketFD, 1);
+		remove_from_Serverlist_by_Socket(item->socketFD, 1);
+		fprintf(stderr, "Verbindung zum Socket %d unterbrochen. \n",
+				item->socketFD);
+		item->status = REMOVE;
+		return;
+	}
 	if (numBytesRcvd < 0) {
 		perror("recv");
 		fprintf(stderr, "ERROR: Kein Recv der Message moeglich\n");
@@ -291,7 +336,7 @@ int RecieveHeaderTCP(common_header* header, int clntSocket) {
 		fprintf(stderr, "Verbindung zum Socket %d unterbrochen. \n",
 				clntSocket);
 		remove_user_by_socket(clntSocket, 1);
-		remove_from_Serverlist_by_Socket(clntSocket,1);
+		remove_from_Serverlist_by_Socket(clntSocket, 1);
 		return 0;
 	}
 
@@ -337,7 +382,7 @@ void* workerThreadMain() {
 			if (header_recieved <= 0) {
 
 				//@TODO Verbindung schließen remove_user_by_socket(item->socketFD); //
-			}else{
+			} else {
 				if (header.version == SUPPORTED_VERSION) {
 					switch (header.type) {
 					case LOG_IN_OUT_HEADER:
@@ -350,31 +395,29 @@ void* workerThreadMain() {
 						break;
 					case MESSAGE_HEADER:
 						fprintf(stderr, "Message Header erhalten\n");
-						handleMessage(item->socketFD, &header);
+						handleMessage(item->socketFD, &header, item);
 						break;
 					default:
 						fprintf(stderr, "Unbekannter MessageTyp: %d\n",
 								(int) header.type);
 					}
 
-				}
-				else {
+				} else {
 					fprintf(stderr, "Unbekannte Headerversion: %d\n",
 							(int) header.version);
 					// Ueberpruefe MAXIMUM_TIME_TO_LIVE und entferne anderenfalls den eintrag.
 					item->ttl++;
 					if (item->ttl > MAXIMUM_TIME_TO_LIVE) {
 						//todo umbennen es werden alle user gelöscht.
-						fprintf(stderr,"Maximum Time to Live abgelaufen.");
-						remove_user_by_socket(item->socketFD,1);//
+						fprintf(stderr, "Maximum Time to Live abgelaufen.");
+						remove_user_by_socket(item->socketFD, 1); //
 					}
-			}
+				}
 
-			if (header_recieved < 0) {
-				fprintf(stderr, "ERROR: Out of memory\n");
-				exit(EXIT_FAILURE);
-			}
-
+				if (header_recieved < 0) {
+					fprintf(stderr, "ERROR: Out of memory\n");
+					exit(EXIT_FAILURE);
+				}
 
 			}
 
@@ -511,9 +554,13 @@ void initializeRequest(char* ip) {
 	// memset((void *)&header,0,sizeof(common_header));
 	ssize_t numBytesRcvd = recv(socketFD, (void*) &header,
 			sizeof(common_header), 0);
+	if (numBytesRcvd == 0) {
+		fprintf(stderr,
+				"Es konnte keine Server-Serverbindng hergestellt werden. \n");
+	}
 	if (numBytesRcvd < 0) {
-		fprintf(stderr, "ERROR; Recieve\n");
-
+		fprintf(stderr,
+				"Es konnte keine Server-Serverbindng hergestellt werden. \n");
 	}
 
 	connection_item* request = (connection_item*) malloc(
@@ -544,7 +591,7 @@ int main(int argc, const char * argv[]) {
 	init_server_list();
 	FD_ZERO(&readfds);
 
-	initializeRequest("141.22.27.107");
+//	initializeRequest("141.22.27.107");
 
 	/**
 	 * Starten der Threads.
